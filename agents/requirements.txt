@@ -1,0 +1,5 @@
+numpy
+mypy
+nose
+coverage
+nose-progressive
