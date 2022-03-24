@@ -22,10 +22,10 @@ def preprocess_CREMI(dir_in, dir_out):
             seg = dataset['volumes']['labels']['neuron_ids'][z, :, :]
             contours, hierarchy = cv.findContours(seg, cv.RETR_FLOODFILL, cv.CHAIN_APPROX_SIMPLE)
             out = np.zeros([X, Y], np.uint8)
-            cv.drawContours(out, contours, -1, (255, 255, 255), 1)
+            cv.drawContours(out, contours, -1, (255, 255, 255), 3)
             fn = p_seg / (p.stem + '_' + str(z) + '.png')
             cv.imwrite(str(fn), out)
 
 
 if __name__ == "__main__":
-    preprocess_CREMI('.', 'images')
+    preprocess_CREMI('images', 'images')

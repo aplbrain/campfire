@@ -33,7 +33,7 @@ def main(images_dir):
     images = sorted(glob(os.path.join(images_dir, "raw", "*.png")))
     segs = sorted(glob(os.path.join(images_dir, "seg", "*.png")))
     train_files = [{"img": img, "seg": seg} for img, seg in zip(images[:250], segs[:250])]
-    val_files = [{"img": img, "seg": seg} for img, seg in zip(images[-250:], segs[-250:])]
+    val_files = [{"img": img, "seg": seg} for img, seg in zip(images[-125:], segs[-125:])]
 
     # define transforms for image and segmentation
     train_transforms = Compose(
