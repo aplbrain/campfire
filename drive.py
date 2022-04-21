@@ -25,7 +25,7 @@ def run_endpoints(root_id,radius=(100,100,10), resolution=(8,8,40), unet_bound_m
     
 
 
-def drive(ep, root_id, radius, resolution, unet_bound_mult):
+def drive(ep, root_id, radius, resolution, unet_bound_mult, save_pd=True):
         endpoint = np.divide(ep, resolution).astype('int')
         precomp_file_path = f"./precompute_{root_id}_{endpoint}"
         bound  = (endpoint[0] - radius[0], 
@@ -64,6 +64,9 @@ def drive(ep, root_id, radius, resolution, unet_bound_mult):
         pos_matrix = create_post_matrix(pos_histories, mem_to_run.shape)
         merges = merge_paths(pos_histories,seg_ids, ep)
         merges_root = merges[(merges.M1 == root_id) | (merges.M2 == root_id)]
+        if save_pd:
+            merges.to_csv(f"./merges_{root_id}_{endpoint}.csv")
+            merges_root.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
 
         return merges, merges_root, pos_matrix, seg
 
