@@ -20,7 +20,7 @@ from typing import List, Tuple, Dict
 
 import numpy as np
 
-from sensor import Sensor
+from agents.sensor import Sensor
 
 
 class Agent:

@@ -4,9 +4,9 @@ Script to set parameters and run an agent run
 
 import time
 import numpy as np
-from swarm import Swarm
-from scripts import precompute_membrane_vectors, load_membrane_vectors, create_queue
-
+from agents.swarm import Swarm
+from agents.scripts import load_membrane_vectors, create_queue
+import copy
 
 def run_agents(**kwargs):
     """
@@ -17,9 +17,7 @@ def run_agents(**kwargs):
         None: all relavent output is pickled to file.
     """
     tic = time.time()
-    # Instantiate graph variables- tracking which agents collide and which synapses
-    # Found by which agents
-    dataset = "fib"
+
     # -------------------
     # Can iterate over kwargs.items(), (k) = v
     # Can also use namespace object with dict as input, in __init__ use __setatr__(k,v)
@@ -29,16 +27,16 @@ def run_agents(**kwargs):
     max_vel = kwargs["max_vel"]
     n_steps = kwargs["n_steps"]
     seg = kwargs["segmentation"]
+    root_id = kwargs["root_id"]
     # -------------------
     # Preparing Data, Starting Locs and Swarm
 
     data = load_membrane_vectors(precompute_fn)
-
+    print("Making Queue")
     agent_queue = create_queue(
-        data.shape, 0, sampling_type="synapse", segmentation=seg
-    )
+        data.shape, 25, sampling_type="extension", root_id=root_id, segmentation=seg)
 
-    print(f"Data Prep Time: {time.time() - tic}")
+    print(f"Data Prep Time: {time.time() - tic}. Spawning {len(agent_queue)} agents")
 
     tic = time.time()
 
@@ -46,11 +44,13 @@ def run_agents(**kwargs):
     # agent_queue += create_queue(data.shape, n_pts_per_dim, sampling_type="lin")
 
     num_agents = len(agent_queue)
+    print(f"I Made {num_agents} agents")
     # Spawn agents
     count = 1
     swarm = Swarm(
         data=data,
         mem=mem,
+        seg=seg,
         agent_queue=agent_queue,
         sensor_list=sensor_list,
         num_agents=num_agents,
@@ -77,4 +77,6 @@ def run_agents(**kwargs):
     )
     # Save out data to file
     pos_histories = [a.get_position_history() for a in swarm.agents]
-
+    seg_ids = [a.seg_id for a in swarm.agents]
+    agent_ids = [a.agent_id for a in swarm.agents]
+    return pos_histories, seg_ids, agent_ids

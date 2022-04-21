@@ -138,11 +138,9 @@ class AdjacencySensor(Sensor):
 
     """
 
-    def __init__(self, exp_mat, radius, kill_on_exp=False, history_range=5):
+    def __init__(self, radius, kill_on_exp=False):
         self.vis = radius
-        self.data = exp_mat
         self.kill_on_exp = kill_on_exp
-        self.history_range = history_range
 
     def get_vector(self, swarm_ptr, agent_ptr):
         """
@@ -161,7 +159,9 @@ class AdjacencySensor(Sensor):
         # Maybe don't set membranes as explored by default
         # Reason 1 - seperation of concerns - membranes as membranes, explored as explored
         # look at both seperate, perhaps. Look at both scenarios and test
-        sub_mat = self.data[
+        swarm_ptr.agent_map[position] = agent_ptr.agent_id
+        
+        sub_mat = swarm_ptr.data[
             position[0] - self.vis : position[0] + self.vis + 1,
             position[1] - self.vis : position[1] + self.vis + 1,
             position[2] - self.vis : position[2] + self.vis + 1,
@@ -198,13 +198,13 @@ class PrecomputedSensor(Sensor):
         # Agent position must be int for array indexing
         pos = pos.astype(int)
         try:
-            vec = swarm_ptr.data[tuple(pos)]
+            vec = swarm_ptr.data[pos[0], pos[1], pos[2]]
         except IndexError:
             agent_ptr.alive = False
-            agent_ptr.position_history = agent_ptr.position_history[:-2]
+            # agent_ptr.position_history = agent_ptr.position_history[:-2]
             vec = np.zeros(3)
         # Dealing with anisotropy and row/col vs x/y flip
-        print("S", pos, vec.shape)
+        # print("S", pos, vec.shape)
         vec[0], vec[1], vec[2] = vec[1], vec[0], vec[2]
         self.vector = vec
         return self.vector

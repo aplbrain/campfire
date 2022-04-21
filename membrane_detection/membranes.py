@@ -32,7 +32,7 @@ class NumpyDataset(monai.data.Dataset):
         return self.transform(img)
 
 
-def segment_membranes(vol, pth="best_metric_model_segmentation2d_dict.pth"):
+def segment_membranes(vol, pth="best_metric_model_segmentation2d_dict.pth", device_s='cpu'):
     """Segment membranes from electron microscopy images
         Parameters
         ----------
@@ -45,6 +45,10 @@ def segment_membranes(vol, pth="best_metric_model_segmentation2d_dict.pth"):
         val_outputs : uint8 3-dimensional Numpy array
             Membrane segmentation volume (0 - no membrane, 1 - membrane)
     """
+    if device_s == 'cpu':
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda")
     val_transforms = Compose(
         [
             AddChannel(),
@@ -57,7 +61,8 @@ def segment_membranes(vol, pth="best_metric_model_segmentation2d_dict.pth"):
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate)
 
     post_trans = Compose([EnsureType(), Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     model = monai.networks.nets.UNet(
         spatial_dims=2,
         in_channels=1,
@@ -66,8 +71,10 @@ def segment_membranes(vol, pth="best_metric_model_segmentation2d_dict.pth"):
         strides=(2, 2, 2, 2),
         num_res_units=2,
     ).to(device)
-
-    model.load_state_dict(torch.load(pth))
+    if device_s == 'cpu':
+        model.load_state_dict(torch.load(pth, map_location=torch.device('cpu')))
+    else:
+        model.load_state_dict(torch.load(pth))
     model.eval()
     val_outputs = []
     with torch.no_grad():

@@ -19,8 +19,8 @@ from typing import List
 from concurrent.futures import ThreadPoolExecutor
 import sys
 import numpy as np
-from agent import Agent
-from sensor import *
+from agents.agent import Agent
+from agents.sensor import *
 from tqdm import tqdm
 
 class Swarm:
@@ -34,6 +34,7 @@ class Swarm:
         self,
         data: np.array = None,
         mem: np.array = None,
+        seg: np.array = None,
         agent_queue: list = [],
         sensor_list: list = [],
         num_agents: int = 0,
@@ -41,7 +42,7 @@ class Swarm:
         parallel: bool = True,
         max_steps: int = None,
         isotropy: float = 1,
-        show_tqdm: bool = True,
+        show_tqdm: bool = False,
     ) -> None:
         """
         Create a new swarm.
@@ -80,11 +81,11 @@ class Swarm:
         # Adjacency matrix to track which seg_id's merge
         # 1st dimension tracks agents seeing each other
         # 2nd dimension tracks agents entering other segments
-        self.seg_map = np.zeros((*self.data.shape,2))
+        # self.seg_map = np.zeros((*self.data.shape,2))
         # Agents publish their location here
-        self.agent_map = np.zeros(self.data[:3])
+        # self.agent_map = np.zeros(self.data.shape[:3])
 
-        self.agent_adjacency = {seg_id:i for(seg_id, i) in enumerate(np.unique(self.data))}
+        # self.agent_adjacency = {seg_id:i for(seg_id, i) in enumerate(np.unique(self.data))}
         self.id_map = {}
         self.agents = []
         self._count = 1
@@ -97,8 +98,11 @@ class Swarm:
             agent_range = range(num_agents)
 
         for i in agent_range:
-            init_pos = np.array(agent_queue)[i].astype(int)
-            seg_id = self.data[init_pos]
+            init_pos = agent_queue[i]
+            # print("POS", init_pos, self.data.shape)
+            # print(self.data[init_pos].shape)
+            seg_id = int(seg[init_pos[0], init_pos[1], init_pos[2]])
+            # print("SEG", seg_id)
             self.add_agent(init_pos, seg_id, sensor_list, max_velocity)
     
     def set_data(self, data: np.array) -> None:
@@ -222,7 +226,7 @@ class Swarm:
                 return False
 
         any_alive = False
-        self.agent_map = np.zeros(self.data[:3])
+        # self.agent_map = np.zeros(self.data[:3])
         # Can run in parallel (the line below) or in series, using the `else`
         # block below.
         if self._parallel:
