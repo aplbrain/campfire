@@ -7,6 +7,8 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from sklearn.model_selection import train_test_split
+
 import monai
 from monai.data import list_data_collate, decollate_batch
 from monai.inferers import sliding_window_inference
@@ -32,8 +34,9 @@ def main(images_dir):
 
     images = sorted(glob(os.path.join(images_dir, "raw", "*.png")))
     segs = sorted(glob(os.path.join(images_dir, "seg", "*.png")))
-    train_files = [{"img": img, "seg": seg} for img, seg in zip(images[:250], segs[:250])]
-    val_files = [{"img": img, "seg": seg} for img, seg in zip(images[-125:], segs[-125:])]
+    images_train, images_test, segs_train, segs_test = train_test_split(images, segs, test_size=0.1, random_state=0)
+    train_files = [{"img": img, "seg": seg} for img, seg in zip(images_train, segs_train)]
+    val_files = [{"img": img, "seg": seg} for img, seg in zip(images_test, segs_test)]
 
     # define transforms for image and segmentation
     train_transforms = Compose(
@@ -97,12 +100,13 @@ def main(images_dir):
     val_interval = 2
     best_metric = -1
     best_metric_epoch = -1
+    num_epochs = 100
     epoch_loss_values = list()
     metric_values = list()
     writer = SummaryWriter()
-    for epoch in range(100):
+    for epoch in range(num_epochs):
         print("-" * 10)
-        print(f"epoch {epoch + 1}/{10}")
+        print(f"epoch {epoch + 1}/{num_epochs}")
         model.train()
         epoch_loss = 0
         step = 0
@@ -162,4 +166,4 @@ def main(images_dir):
 
 
 if __name__ == "__main__":
-    main('./images')
+    main('./pinky100_images')
