@@ -110,3 +110,20 @@ def get_job_from_queue(queue_url, **kwargs):
         return None
     message = response[0]
     return message
+
+
+def get_or_create_queue(queue_name:str, **kwargs):
+    """
+    Creates a queue with the given name. Returns the queue url.
+    """
+    session = boto3.Session(region_name="us-east-1", **kwargs)
+    # Create the queue:
+    sqs = session.client("sqs")
+    
+    # see if the queue already exists:
+    queues = sqs.list_queues(QueueNamePrefix=queue_name)
+    if "QueueUrls" in queues:
+        return queues["QueueUrls"][0]
+    else:
+        print("Creating a new queue...")
+        return sqs.create_queue(QueueName=queue_name)["QueueUrl"]
