@@ -43,7 +43,7 @@ def segment_membranes(vol, pth="best_metric_model_segmentation2d_dict.pth", devi
         Returns
         -------
         val_outputs : uint8 3-dimensional Numpy array
-            Membrane segmentation volume (0 - no membrane, 1 - membrane)
+            Membrane segmentation volume (0 - no membrane, 255 - membrane)
     """
     if device_s == 'cpu':
         device = torch.device("cpu")

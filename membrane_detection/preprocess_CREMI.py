@@ -43,4 +43,4 @@ def preprocess_CREMI(dir_in, dir_out):
 
 
 if __name__ == "__main__":
-    preprocess_CREMI('images', 'images')
+    preprocess_CREMI('./CREMI_images', './CREMI_images')

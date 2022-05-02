@@ -166,4 +166,4 @@ def main(images_dir):
 
 
 if __name__ == "__main__":
-    main('./pinky100_images')
+    main('./CREMI_images')
