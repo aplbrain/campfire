@@ -25,7 +25,7 @@ def run_endpoints(root_id,radius=(100,100,10), resolution=(8,8,40), unet_bound_m
                                root_point_resolution=[4, 4, 40],
                                collapse_soma=True,
                                n_parallel=8)
-    end_points = pickle.load(open('864691135761488438_endpoints.p','rb'))
+    # end_points = pickle.load(open('864691135761488438_endpoints.p','rb'))
     if save_format == 'sqs':
         queue_url = sqs.get_or_create_queue('Endpoints')
         entries=sqs.construct_endpoint_entries(end_points, root_id)
