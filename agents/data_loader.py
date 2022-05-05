@@ -21,4 +21,27 @@ def supervoxels(x_pre, x_post, y_pre, y_post, z_pre, z_post, simplify_supervoxel
         sv_ids[sv_ids==sv_id] = cave_client.chunkedgraph.get_root_id(supervoxel_id=sv_id)
 
     return sv_ids
-    
+
+def get_syn_counts(root_id:str):
+    cave_client = CAVEclient('minnie65_phase3_v1')
+    pre_synapses = cave_client.materialize.query_table(
+        "synapses_pni_2", 
+        filter_in_dict={"pre_pt_root_id": [root_id]},
+        select_columns=['ctr_pt_position', 'pre_pt_root_id']
+    )
+
+    post_synapses = cave_client.materialize.query_table(
+        "synapses_pni_2", 
+        filter_in_dict={"post_pt_root_id": [root_id]},
+        select_columns=['ctr_pt_position', 'post_pt_root_id']
+    )
+
+    return len(pre_synapses), len(post_synapses)
+
+def get_num_soma(root_id:str):
+    cave_client = CAVEclient('minnie65_phase3_v1')
+    soma = cave_client.materialize.query_table(
+        "nucleus_neuron_svm",
+        filter_equal_dict={'pt_root_id':root_id}
+    )
+    return len(soma)

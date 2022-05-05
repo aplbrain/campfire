@@ -56,7 +56,7 @@ def construct_endpoint_entries(
     """
     entries = []
     for i, endpoint in enumerate(endpoint_batch):
-        message_body = ','.join(endpoint)
+        message_body = ','.join(endpoint.astype(str))
         entries.append({
             'Id': str(i),
             'MessageBody': message_body,

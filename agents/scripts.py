@@ -162,7 +162,8 @@ class Intersection():
     def clash(self):
 #         return [(self.sets[i][-1], self.sets[i+1][-1], *self.sets[i][:-1]) for i in range(0, len(self.sets)-1) if np.array_equal(self.sets[i][:-1], self.sets[i+1][:-1])]
         return [[self.sets[i][-1], self.sets[i+1][-1], *self.sets[i][:-1]] for i in range(0, len(self.sets)-1) if (np.array_equal(self.sets[i][:-1], self.sets[i+1][:-1]) and not self.sets[i][-1] == self.sets[i+1][-1])]
-    def merge(self, clash,ep=-1):
+    def merge(self, clash,ep=-1,root_id=-1):
+        root_id_compare = str(root_id)
         m = np.array(clash)
         weight_dict = {}
         loc_dict = {}
@@ -180,19 +181,32 @@ class Intersection():
                 loc_dict[merge_key] = [tuple(merge[2:])]
         merge_df = pd.DataFrame()
         for c in weight_dict:
-            presyn = int(c[0])
-            postsyn = int(c[1])
+            presyn = str(c[0])
+            postsyn = str(c[1])
+            to_merge = -1
+            if presyn==root_id_compare:
+                to_merge=postsyn
+                # print("PRE", to_merge, root_id)
+            elif postsyn==root_id_compare:
+                to_merge=presyn
+                # print("POST", to_merge, root_id)
+
+            else:
+                print(root_id, presyn, postsyn)
+                continue
+
+
             weight = weight_dict[c]
             locs = loc_dict[c]
-            merge_df = merge_df.append({"EP":ep, "M1":presyn, "M2":postsyn, "Weight":weight, "Merge Locations":locs},ignore_index=True)
+            merge_df = merge_df.append({"EP":ep, "root_id":root_id_compare, "seg_id":to_merge, "Weight":weight, "Merge Locations":locs},ignore_index=True)
         return merge_df
     
-def merge_paths(path_list,rids,ep):
+def merge_paths(path_list,rids,ep,root_id):
     inter = Intersection(path_list,rids)
     inter.concArrays()
     inter.sortList()
     clash =  inter.clash()
-    weighted_merge = inter.merge(clash,ep)
+    weighted_merge = inter.merge(clash,ep,root_id)
     return weighted_merge
 
 def find_center(seg, seg_id):
@@ -330,3 +344,28 @@ def move_slice(ax, sign):
     ax.images[0].set_array(ax.mems[:, :, ax.index].T)
     ax.images[1].set_array(ax.paths[:, :, ax.index].T)
     ax.set_title(ax.index)
+
+def get_soma(root_id:str,cave_client, num=True):
+    soma = cave_client.materialize.query_table(
+        "nucleus_neuron_svm",
+        filter_equal_dict={'pt_root_id':root_id}
+    )
+    if num:
+        return num(soma)
+    else:
+        return soma
+
+def get_syn_counts(root_id:str, cave_client):
+    pre_synapses = cave_client.materialize.query_table(
+        "synapses_pni_2", 
+        filter_in_dict={"pre_pt_root_id": [root_id]},
+        select_columns=['ctr_pt_position', 'pre_pt_root_id']
+    )
+
+    post_synapses = cave_client.materialize.query_table(
+        "synapses_pni_2", 
+        filter_in_dict={"post_pt_root_id": [root_id]},
+        select_columns=['ctr_pt_position', 'post_pt_root_id']
+    )
+
+    return len(pre_synapses), len(post_synapses)
