@@ -11,6 +11,7 @@ from agents.run import run_agents
 import pandas as pd
 import aws.sqs as sqs
 import sys
+import requests
 
 def run_endpoints(root_id,radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, return_opacity_seg=False,save_format='pickle'):
     # SPINE FINDING
@@ -25,7 +26,6 @@ def run_endpoints(root_id,radius=(100,100,10), resolution=(8,8,40), unet_bound_m
                                root_point_resolution=[4, 4, 40],
                                collapse_soma=True,
                                n_parallel=8)
-    end_points = pickle.load(open('864691135761488438_endpoints.p','rb'))
     if save_format == 'sqs':
         queue_url = sqs.get_or_create_queue('Endpoints')
         entries=sqs.construct_endpoint_entries(end_points, root_id)
@@ -38,9 +38,9 @@ def run_endpoints(root_id,radius=(100,100,10), resolution=(8,8,40), unet_bound_m
         pickle.dump(end_points, open(f"./data/{root_id}_endpoints.p", "wb"))
 
 
-def drive(root_id, radius, resolution, unet_bound_mult, ep='sqs', save_pd=True,device='cpu'):
+def drive(root_id, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save=True,device='cpu'):
         if ep == 'sqs':
-            eq = sqs.get_job_from_queue('Endpoints')
+            ep = sqs.get_job_from_queue('Endpoints')
         endpoint = np.divide(ep, resolution).astype('int')
         precomp_file_path = f"./precompute_{root_id}_{endpoint}"
         bound  = (endpoint[0] - radius[0], 
@@ -83,10 +83,21 @@ def drive(root_id, radius, resolution, unet_bound_mult, ep='sqs', save_pd=True,d
         else:
             merges_root.rename({"M2":"root_id", "M1":"segment_id"})
 
-        if save_pd:
+        if save == "pd":
             merges.to_csv(f"./merges_{root_id}_{endpoint}.csv")
             merges_root.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
+        if save == "nvq":
+            import neuvueclient as Client
+            import hashlib
+  
+            hash = hashlib.md5(str(endpoint))
 
+            weights_dict = dict(zip(merges_root.seg_id, merges_root.Weight))
+
+            agents_dict = {"Root_id": root_id, "Endpoint":endpoint, "Hash":hash, "Merges": weights_dict}
+
+            C = Client.NeuvueQueue("http://neuvuequeue-server/")
+            C.post_agents(**agents_dict)
         return merges, merges_root, pos_matrix, seg
 
 def visualize_merges(merges_root, seg, root_id):
@@ -107,25 +118,12 @@ def visualize_merges(merges_root, seg, root_id):
     seg_merge_output[seg_merge_output==0]=np.nan
     return opacity_merges, seg_merge_output
 
-    # Iterate through endpoints, running agents and merging
-    for ep in end_points:
-        merges, merges_root, pos_matrix, seg = drive(ep, root_id, radius, resolution,unet_bound_mult)
-        if return_opacity_seg:
-            opacity_merges, seg_merge_output = visualize_merges(merges_root, seg, root_id)
-            np.savez(f"./opacity_seg_{root_id}_{ep}.npz", opacity_merges,seg_merge_output)
-        # Merges are indexed by their endpoint
-        big_merge_df = big_merge_df.append(merges)
-        root_merge_df = root_merge_df.append(merges_root)
-    if save_format == 'pickle':
-        big_merge_df.to_pickle(f"./merges_{root_id}.p")
-        root_merge_df.to_pickle(f"./merges_root_{root_id}.p")
-    elif save_format == 'csv':
-        merges.to_csv(f"./merges_{root_id}_{ep}.csv")
-        merges_root.to_csv(f"./merges_root_{root_id}_{ep}.csv")
-
 if __name__ == "__main__":
     mode = sys.argv[1]
     root_id = sys.argv[2]
     if mode == 'endpoints':
         print()
         run_endpoints(root_id, **dict(arg.split('=') for arg in sys.argv[3:]))
+    if mode == 'drive_agents':
+        # default args radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save=True,device='cpu'
+        drive(root_id, **dict(arg.split('=') for arg in sys.argv[3:]))
