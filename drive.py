@@ -1,12 +1,7 @@
-from logging import RootLogger, root
+from logging import root
 from spine_finding import spine_finding
 from caveclient import CAVEclient
-import numpy as np
 from cloudvolume import CloudVolume
-from membrane_detection import membranes
-import agents.sensor
-from agents.run import run_agents
-import pandas as pd
 import aws.sqs as sqs
 import sys
 
@@ -18,6 +13,7 @@ def run_endpoints(root_id,radius=(100,100,10), resolution=(8,8,40), unet_bound_m
         queue_url = sqs.get_or_create_queue("Root_ids_endpoints")
         root_id_msg = sqs.get_job_from_queue(queue_url)
         root_id = int(root_id_msg.body)
+    print("ROOT_ID", root_id)
     end_points = spine_finding.find_endpoints(root_id, 
                                client=client,
                                refine='all',
@@ -42,5 +38,4 @@ if __name__ == "__main__":
     mode = sys.argv[1]
     root_id = sys.argv[2]
     if mode == 'endpoints':
-        print()
         run_endpoints(root_id, **dict(arg.split('=') for arg in sys.argv[3:]))

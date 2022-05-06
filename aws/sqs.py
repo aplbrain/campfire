@@ -62,7 +62,7 @@ def construct_endpoint_entries(
             'MessageBody': message_body,
             'MessageAttributes': {
                 'root_id': {
-                    'StringValue': root_id,
+                    'StringValue': str(root_id),
                     'DataType': 'String',
                 }
             }

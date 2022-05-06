@@ -1,13 +1,12 @@
-FROM node:16.10-alpine
+# FROM python:3-alpine
+FROM python:3.9
 LABEL maintainer "Justin Joyce <Justin.Joyce@jhuapl.edu>"
 
-# RUN apk add --no-cache su-exec tini
-# EXPOSE 80
-# ENV NODE_CONFIG_DIR=/etc/neuvuequeue
-# VOLUME [ "/etc/neuvuequeue" ]
+COPY . /root/campfire
+COPY cave-secret.json /root/.cloudvolume/secrets/cave-secret.json
+COPY credentials /root/.aws/credentials
 
-COPY ./campfire ~/campfire
-
-CMD [ "node", "/opt/neuvuequeue/build/bin/neuvuequeue.js" ]
-ENTRYPOINT [ "/sbin/tini", "--" ]
-CMD [ "node", "/opt/neuvuequeue/build/bin/neuvuequeue.js" ]
+WORKDIR /root/campfire
+RUN pip3 install --upgrade pip
+RUN pip3 install -r requirements.txt
+CMD [ "python3", "drive.py", "endpoints", "sqs", "save_format=sqs"]
