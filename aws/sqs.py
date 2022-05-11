@@ -40,6 +40,32 @@ def send_batch(queue_url, message_batch, **kwargs):
     if len(response.get('Failed', [])) > 0:
         raise Exception(response['Failed'])
 
+def send_one(queue_url, message_body, message_attributes, **kwargs):
+    """
+    Function to send messages and ensure all messages sent successfully
+
+    Args:
+        sqs (botocore.client) : sqs client
+        queue_url (str) : queue url 
+        message_batch (list) : list of messages. each message is a dict with an id and body keys.
+    
+    Returns: 
+        None
+    """
+    session = boto3.Session(region_name="us-east-1", **kwargs)
+    sqs = session.client("sqs")
+    retries = 3
+    while retries > 0: 
+        response = sqs.send_message(QueueUrl=queue_url, MessageBody=message_body,Attributes=message_attributes)
+        if len(response.get('Failed', [])) == 0:
+            break 
+        retries -= 1
+        failed_ids = [i['Id'] for i in response['Failed']]
+        message_batch = [i for i in message_batch if i['Id'] in failed_ids]
+    
+    if len(response.get('Failed', [])) > 0:
+        raise Exception(response['Failed'])
+
 def construct_endpoint_entries(
     endpoint_batch: Iterable[List], 
     root_id: str
@@ -62,7 +88,7 @@ def construct_endpoint_entries(
             'MessageBody': message_body,
             'MessageAttributes': {
                 'root_id': {
-                    'StringValue': root_id,
+                    'StringValue': str(root_id),
                     'DataType': 'String',
                 }
             }

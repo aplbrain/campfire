@@ -11,36 +11,14 @@ from agents.run import run_agents
 import pandas as pd
 import aws.sqs as sqs
 import sys
-import requests
 
-def run_endpoints(root_id,radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, return_opacity_seg=False,save_format='pickle'):
-    # SPINE FINDING
-    import pickle
-
-    root_merge_df = pd.DataFrame()
-    big_merge_df = pd.DataFrame()
-    client = CAVEclient('minnie65_phase3_v1')
-    end_points = spine_finding.find_endpoints(root_id, 
-                               client=client,
-                               refine='all',
-                               root_point_resolution=[4, 4, 40],
-                               collapse_soma=True,
-                               n_parallel=8)
-    if save_format == 'sqs':
-        queue_url = sqs.get_or_create_queue('Endpoints')
-        entries=sqs.construct_endpoint_entries(end_points, root_id)
-        while(len(entries) > 0):
-            entries_send = entries[:10]
-            entries = entries[10:]
-            sqs.send_batch(queue_url, entries_send)
-    elif save_format == 'pickle':
-        import pickle
-        pickle.dump(end_points, open(f"./data/{root_id}_endpoints.p", "wb"))
-
-
-def drive(root_id, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save=True,device='cpu'):
+def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save=True,device='cpu'):
+    if n == -1:
+        n = 1e10
+    for _ in range(n):
         if ep == 'sqs':
             ep = sqs.get_job_from_queue('Endpoints')
+            root_id = ep
         endpoint = np.divide(ep, resolution).astype('int')
         precomp_file_path = f"./precompute_{root_id}_{endpoint}"
         bound  = (endpoint[0] - radius[0], 
@@ -63,14 +41,14 @@ def drive(root_id, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, 
         em = np.squeeze(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3], bound_EM[4]:bound_EM[5]])
         mem_seg = membranes.segment_membranes(em, device_s=device)
         mem_to_run = mem_seg[(unet_bound_mult-1)*radius[0]:(unet_bound_mult+1)*radius[0],
-                     (unet_bound_mult-1)*radius[1]:(unet_bound_mult+1)*radius[1], :].astype(float)
+                        (unet_bound_mult-1)*radius[1]:(unet_bound_mult+1)*radius[1], :].astype(float)
         compute_vectors = precompute_membrane_vectors(mem_to_run, mem_to_run, precomp_file_path, 7)
 
         sensor_list = [
             (agents.sensor.BrownianMotionSensor(), .1),
             (agents.sensor.PrecomputedSensor(), .2),
             ]
-    
+
         pos_histories, seg_ids, agent_ids=run_agents(mem=mem_to_run, sensor_list=sensor_list,
                                                     precompute_fn=precomp_file_path+'.npz',
                                                     max_vel=.9,n_steps=300,segmentation=seg, root_id=root_id)
@@ -89,7 +67,7 @@ def drive(root_id, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, 
         if save == "nvq":
             import neuvueclient as Client
             import hashlib
-  
+
             hash = hashlib.md5(str(endpoint))
 
             weights_dict = dict(zip(merges_root.seg_id, merges_root.Weight))
@@ -98,6 +76,35 @@ def drive(root_id, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, 
 
             C = Client.NeuvueQueue("http://neuvuequeue-server/")
             C.post_agents(**agents_dict)
+
+        if save == "sqs":
+            import hashlib
+
+            hash = hashlib.md5(str(endpoint))
+
+            weights_dict = dict(zip(merges_root.seg_id, merges_root.Weight))
+
+            agents_dict = {"Root_id": root_id, "Endpoint":endpoint, "Hash":hash, "Merges": weights_dict}
+            att_dict = {
+                            'root_id': {
+                                'StringValue': str(root_id),
+                                'DataType': 'String',
+                            },
+                            'endpoint': {
+                                'StringValue': ','.join(endpoint.astype(str)),
+                                'DataType': 'String',
+                            },
+                            'merges': {
+                                'StringValue': str(merges_root.seg_id),
+                                'DataType': 'String',
+                            },
+                            'weights': {
+                                'StringValue': str(merges_root.Weight),
+                                'DataType': 'String',
+                            }
+                        }
+            sqs.send_one("Agents", hash, att_dict)
+
         return merges, merges_root, pos_matrix, seg
 
 def visualize_merges(merges_root, seg, root_id):
@@ -121,9 +128,4 @@ def visualize_merges(merges_root, seg, root_id):
 if __name__ == "__main__":
     mode = sys.argv[1]
     root_id = sys.argv[2]
-    if mode == 'endpoints':
-        print()
-        run_endpoints(root_id, **dict(arg.split('=') for arg in sys.argv[3:]))
-    if mode == 'drive_agents':
-        # default args radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save=True,device='cpu'
-        drive(root_id, **dict(arg.split('=') for arg in sys.argv[3:]))
+    drive(root_id, **dict(arg.split('=') for arg in sys.argv[3:]))
