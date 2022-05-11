@@ -1,8 +1,9 @@
 from caveclient import CAVEclient
 import pcg_skel
+from datetime import datetime
 
 
-def find_endpoints(root_id, **kwargs):
+def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
     """Find euclidean-space skeleton end point vertices from the pychunkedgraph
     Parameters
     ----------
@@ -65,6 +66,10 @@ def find_endpoints(root_id, **kwargs):
     """
     sk_l2 = pcg_skel.pcg_skeleton(root_id, **kwargs)
     end_points = sk_l2.vertices[sk_l2.end_points, :]
+
+    if save_skel:
+        # Also save nucleus ID and root ID
+        sk_l2.write_skeleton_h5(f"{nucleus_id}_{root_id}_{time}_skel.h5")
 
     return end_points
 

@@ -103,7 +103,7 @@ def get_job_from_queue(queue_url, **kwargs):
 
     # Get a single message from the queue:
     response = queue.receive_messages(
-        MaxNumberOfMessages=1, WaitTimeSeconds=1, MessageAttributeNames=["*"]
+        MaxNumberOfMessages=1, WaitTimeSeconds=1, MessageAttributeNames=["All"]
     )
 
     if len(response) == 0:
