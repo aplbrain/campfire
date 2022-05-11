@@ -34,8 +34,8 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = int(root_id_msg.body)
 
-    nucleus_id = int(root_id.message_attributes['nucleus_id']['StringValue'])
-    time = root_id.message_attributes['time']['StringValue']
+    nucleus_id = int(root_id_msg.message_attributes['nucleus_id']['StringValue'])
+    time = root_id_msg.message_attributes['time']['StringValue']
 
     n_root_id = 0
     if end == -1:
