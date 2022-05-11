@@ -50,8 +50,9 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
 
 if __name__ == "__main__":
     mode = sys.argv[1]
-    root_id = sys.argv[2]
     if mode == 'sqs':
-        run_endpoints_sqs(**dict(arg.split('=') for arg in sys.argv[3:]))
+        end = sys.argv[2]
+        run_endpoints_sqs(end,**dict(arg.split('=') for arg in sys.argv[3:]))
     elif mode == 'pickle':
+        root_id = sys.argv[2]
         run_endpoints_pickle(root_id, **dict(arg.split('=') for arg in sys.argv[3:]))
