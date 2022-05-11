@@ -9,4 +9,4 @@ COPY credentials /root/.aws/credentials
 WORKDIR /root/campfire
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
-CMD [ "python3", "drive.py", "endpoints", "sqs", "save_format=sqs"]
+CMD [ "python3", "drive.py", "sqs", "-1", "delete=True"]
