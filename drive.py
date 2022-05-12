@@ -36,7 +36,8 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
 
     nucleus_id = int(root_id_msg.message_attributes['nucleus_id']['StringValue'])
     time = root_id_msg.message_attributes['time']['StringValue']
-
+    if delete:
+        root_id_msg.delete()
     n_root_id = 0
     if end == -1:
         end = 1e10
@@ -57,8 +58,7 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
             entries_send = entries[:10]
             entries = entries[10:]
             sqs.send_batch(queue_url_endpts, entries_send)
-        if delete:
-            root_id_msg.delete()
+
     n_root_id+=1
 
 
