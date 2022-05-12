@@ -70,7 +70,7 @@ def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
     if save_skel:
         # Also save nucleus ID and root ID
         import meshparty
-        meshparty.skeleton_io.write_skeleton_h5(sk_l2,f"{nucleus_id}_{root_id}_{time}_skel.h5")
+        meshparty.skeleton_io.write_skeleton_h5(sk_l2,f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5")
 
     return end_points
 
