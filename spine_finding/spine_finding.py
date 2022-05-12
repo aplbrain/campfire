@@ -69,7 +69,8 @@ def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
 
     if save_skel:
         # Also save nucleus ID and root ID
-        sk_l2.write_skeleton_h5(f"{nucleus_id}_{root_id}_{time}_skel.h5")
+        import meshparty
+        meshparty.skeleton_io.write_skeleton_h5(sk_l2,f"{nucleus_id}_{root_id}_{time}_skel.h5")
 
     return end_points
 

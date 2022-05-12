@@ -42,14 +42,15 @@ def send_batch(queue_url, message_batch, **kwargs):
 
 def construct_endpoint_entries(
     endpoint_batch: Iterable[List], 
-    root_id: str
+    root_id: str,
+    t: str,
+    nucleus_id: str
     ) -> Dict:
     """
     Create a message batch entry for the branch tip endpoints for one root_id. 
 
     Args:
         endpoint_batch (List[str]): list of xyz endpoints 
-        cloudvolume_path: cloudvolume path to upload to
     
     Returns:
         entries (List[Dict]): list of message batch entries
@@ -61,7 +62,15 @@ def construct_endpoint_entries(
             'Id': str(i),
             'MessageBody': message_body,
             'MessageAttributes': {
-                'root_id': {
+                'time': {
+                    'StringValue': t,
+                    'DataType': 'String',
+                },
+                'nucleus_id': {
+                    'StringValue': nucleus_id,
+                    'DataType': 'String',
+                },
+                'nucleus_id': {
                     'StringValue': str(root_id),
                     'DataType': 'String',
                 }
