@@ -63,11 +63,11 @@ def construct_endpoint_entries(
             'MessageBody': message_body,
             'MessageAttributes': {
                 'time': {
-                    'StringValue': t,
+                    'StringValue': str(t),
                     'DataType': 'String',
                 },
                 'nucleus_id': {
-                    'StringValue': nucleus_id,
+                    'StringValue': str(nucleus_id),
                     'DataType': 'String',
                 },
                 'nucleus_id': {
