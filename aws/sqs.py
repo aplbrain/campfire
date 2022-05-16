@@ -70,7 +70,7 @@ def construct_endpoint_entries(
                     'StringValue': str(nucleus_id),
                     'DataType': 'String',
                 },
-                'nucleus_id': {
+                'root_id': {
                     'StringValue': str(root_id),
                     'DataType': 'String',
                 }
