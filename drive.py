@@ -31,19 +31,22 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
     queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
     queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
 
-    root_id_msg = sqs.get_job_from_queue(queue_url_rid)
-    root_id = int(root_id_msg.body)
-
-    nucleus_id = int(root_id_msg.message_attributes['nucleus_id']['StringValue'])
-    time = root_id_msg.message_attributes['time']['StringValue']
-    if delete:
-        root_id_msg.delete()
+  
     n_root_id = 0
     if end == -1:
         end = 1e10
 
     while n_root_id < end:
+
+        root_id_msg = sqs.get_job_from_queue(queue_url_rid)
+        root_id = int(root_id_msg.body)
         print("ROOT_ID", root_id)
+
+        nucleus_id = int(root_id_msg.message_attributes['nucleus_id']['StringValue'])
+        time = root_id_msg.message_attributes['time']['StringValue']
+        if delete:
+            root_id_msg.delete()
+
         end_points = spine_finding.find_endpoints(root_id, nucleus_id, time,
                                 save_skel=return_skel,
                                 client=client,
@@ -59,7 +62,7 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
             entries = entries[10:]
             sqs.send_batch(queue_url_endpts, entries_send)
 
-    n_root_id+=1
+        n_root_id+=1
 
 
 if __name__ == "__main__":
