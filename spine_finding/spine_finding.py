@@ -79,8 +79,7 @@ def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
             meshparty.skeleton_io.write_skeleton_h5(sk_l2,f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5")
             response = s3_client.upload_file(f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5", 'neuvue-skeletons', f"{nucleus_id}_{root_id}_{time}_skel.h5")
         except Exception as e:
-            print("s3 upload failed")
-            return False
+            print(e, "s3 upload failed")
     return end_points
 
 
