@@ -55,7 +55,7 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
                                 collapse_soma=True,
                                 n_parallel=8)
 
-        entries=sqs.construct_endpoint_entries(end_points, root_id, nucleus_id, time)
+        entries=sqs.construct_endpoint_entries(end_points, root_id, time, nucleus_id)
 
         while(len(entries) > 0):
             entries_send = entries[:10]
