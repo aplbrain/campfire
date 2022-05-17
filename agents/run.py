@@ -34,7 +34,7 @@ def run_agents(**kwargs):
     data = load_membrane_vectors(precompute_fn)
     print("Making Queue")
     agent_queue = create_queue(
-        data.shape, 25, sampling_type="extension", root_id=root_id, segmentation=seg)
+        data.shape, 3, sampling_type="extension", root_id=root_id, segmentation=seg)
 
     print(f"Data Prep Time: {time.time() - tic}. Spawning {len(agent_queue)} agents")
 

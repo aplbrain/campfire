@@ -40,7 +40,7 @@ def send_batch(queue_url, message_batch, **kwargs):
     if len(response.get('Failed', [])) > 0:
         raise Exception(response['Failed'])
 
-def send_one(queue_url, message_body, message_attributes, **kwargs):
+def send_one(queue_name, message_body, message_attributes, **kwargs):
     """
     Function to send messages and ensure all messages sent successfully
 
@@ -52,6 +52,7 @@ def send_one(queue_url, message_body, message_attributes, **kwargs):
     Returns: 
         None
     """
+    queue_url = get_or_create_queue(queue_name=queue_name)
     session = boto3.Session(region_name="us-east-1", **kwargs)
     sqs = session.client("sqs")
     retries = 3

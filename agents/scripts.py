@@ -1,18 +1,15 @@
-""" This script, when run, will convolve each slice of a given 3D binary volume such that
-the result are vectors pointing away from the walls, looking at range mem_radius
-"""
-
-import os
-from re import S
 import numpy as np
 from scipy.ndimage.filters import convolve
 import pandas as pd
+from caveclient import CAVEclient
 
 def load_membrane_vectors(precomp_fn):
     # If there already is a saved out precompute file, just load it!
     temp = np.load(precomp_fn)
     data = temp["data"]
     return data
+def ver():
+    print("121")
 
 def precompute_membrane_vectors(mem, memz, precomp_fn=None, mem_radius=3):
     """
@@ -79,11 +76,16 @@ def create_queue(data_shape, n_pts, sampling_type="lin",
 
         ids, centers, sizes = get_contacts(segmentation, root_id)
         rid_size = sizes[root_id]
-
+        client = CAVEclient('minnie65_phase3_v1')
         for i in ids:
+            if get_soma(i, client) > 0:
+                print("FILTERED", i)
+                continue
             n_gen = int((sizes[i] / rid_size) * n_pts)
-            for _ in range(n_gen):
-                q.append([*centers[i]])
+            centers_list = centers[i]
+            for j in range(len(centers_list)):
+                for _ in range(n_gen):
+                    q.append([*centers_list[j]])
     print("Returning Queue")
     return q
 
@@ -210,8 +212,8 @@ def merge_paths(path_list,rids,ep,root_id):
     return weighted_merge
 
 def find_center(seg, seg_id):
-        segmentation_coords = np.array(np.argwhere(seg == seg_id))
-        return np.mean(segmentation_coords, axis=1)
+    segmentation_coords = np.array(np.argwhere(seg == seg_id))
+    return np.mean(segmentation_coords, axis=1)
 
 def get_contacts(seg, root_id):
         from scipy.ndimage.filters import convolve
@@ -234,13 +236,24 @@ def get_contacts(seg, root_id):
         centers = {}
         sizes = {}
 
-        centers[root_id] = np.mean(np.argwhere(seg_copy == root_id), axis=0).astype(int)
-
+        points = np.argwhere(seg_copy == root_id)
+        points_z = points[:,2]
+        centers_list = []
+        for z in range(np.min(points_z), np.max(points_z)+1):
+            points_slice = np.argwhere(seg_copy[:,:,z] == root_id)
+            centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
+        centers[root_id] = centers_list
+        print(centers[root_id])
         sizes[root_id] = np.sum(seg_copy == root_id)
 
         for rid in close_ids:
             points = np.argwhere(seg_copy == rid)
-            centers[rid] = np.mean(points, axis=0).astype(int)
+            points_z = points[:,2]
+            centers_list = []
+            for z in range(np.min(points_z), np.max(points_z)+1):
+                points_slice = np.argwhere(seg_copy[:,:,z] == rid)
+                centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
+            centers[rid] = centers_list
             sizes[rid] = len(points)
 
         return close_ids, centers, sizes
@@ -250,7 +263,10 @@ def create_post_matrix(pos_histories, data_shape):
     for i, h in enumerate(pos_histories):
         for p in h:
             p = p.astype(int)
-            pos_matrix[p[0], p[1],p[2]] = i
+            try:
+                pos_matrix[p[0], p[1],p[2]] = i
+            except:
+                pass
     return pos_matrix
 
 
@@ -346,12 +362,14 @@ def move_slice(ax, sign):
     ax.set_title(ax.index)
 
 def get_soma(root_id:str,cave_client, num=True):
+    past_timestamp = cave_client.materialize.get_timestamp(117)
     soma = cave_client.materialize.query_table(
         "nucleus_neuron_svm",
         filter_equal_dict={'pt_root_id':root_id}
+        # timestamp=past_timestamp
     )
     if num:
-        return num(soma)
+        return soma.shape[0]
     else:
         return soma
 

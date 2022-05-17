@@ -96,9 +96,10 @@ class MembraneSensor(Sensor):
     Can randomly spawn a new one afterwards in a random pos
     """
 
-    def __init__(self, membrane) -> None:
+    def __init__(self, membrane, respawn_on_hit=False) -> None:
         self.mems = membrane
         self.vec = np.zeros(3)
+        self.respawn_on_hit=respawn_on_hit
 
     def get_vector(self, swarm_ptr, agent_ptr):
         """
@@ -126,8 +127,8 @@ class MembraneSensor(Sensor):
         if mem_or_not > 0:
             agent_ptr.alive = False
             agent_ptr.position_history = agent_ptr.get_position_history()[:-2]
-            if self.respawn_on_hit:
-                swarm_ptr.add_random(agent_ptr)
+            # if self.respawn_on_hit:
+            #     swarm_ptr.add_random(agent_ptr)
         return self.vec
 
 
