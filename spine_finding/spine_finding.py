@@ -67,10 +67,7 @@ def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
     sk_l2 = pcg_skel.pcg_skeleton(root_id, **kwargs)
     end_points = sk_l2.vertices[sk_l2.end_points, :]
 
-    if save_skel == 'h5':
-        # Also save nucleus ID and root ID
-        import meshparty
-        meshparty.skeleton_io.write_skeleton_h5(sk_l2,f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5")
+    import meshparty
     if save_skel == 's3':
         import boto3
         # Upload the file
@@ -80,6 +77,10 @@ def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
             response = s3_client.upload_file(f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5", 'neuvue-skeletons', f"{nucleus_id}_{root_id}_{time}_skel.h5")
         except Exception as e:
             print(e, "s3 upload failed")
+            save_skel = 'h5'
+    if save_skel == 'h5':
+        # Also save nucleus ID and root ID
+        meshparty.skeleton_io.write_skeleton_h5(sk_l2,f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5")
     return end_points
 
 
