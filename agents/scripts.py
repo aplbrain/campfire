@@ -362,11 +362,11 @@ def move_slice(ax, sign):
     ax.set_title(ax.index)
 
 def get_soma(root_id:str,cave_client, num=True):
-    past_timestamp = cave_client.materialize.get_timestamp(117)
+
     soma = cave_client.materialize.query_table(
         "nucleus_neuron_svm",
-        filter_equal_dict={'pt_root_id':root_id}
-        # timestamp=past_timestamp
+        filter_equal_dict={'pt_root_id':root_id},
+        materialization_version = 117
     )
     if num:
         return soma.shape[0]

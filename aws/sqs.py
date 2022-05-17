@@ -154,3 +154,8 @@ def get_or_create_queue(queue_name:str, **kwargs):
     else:
         print("Creating a new queue...")
         return sqs.create_queue(QueueName=queue_name)["QueueUrl"]
+
+def send_mem_to_cloud(mem, bound):
+    from cloudvolume import CloudVolume
+    membranes = CloudVolume("s3://neuvue-data/minnie65-membranes", progress=False)
+    membranes[bound[0]:bound[1], bound[2]:bound[3], bound[4]:bound[5]] = mem

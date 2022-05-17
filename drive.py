@@ -1,20 +1,17 @@
-from spine_finding import spine_finding
 from caveclient import CAVEclient
 import numpy as np
 from agents import data_loader
 from cloudvolume import CloudVolume
-from matplotlib import pyplot as plt
 from membrane_detection import membranes
 from agents.scripts import precompute_membrane_vectors, create_post_matrix, merge_paths, get_soma, get_syn_counts
 import agents.sensor
 from agents.run import run_agents
-import pandas as pd
 import aws.sqs as sqs
 import sys
 import time
 
 def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
-    tic=time.time()
+    tic1=time.time()
     queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
 
@@ -74,7 +71,7 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
         merges = merge_paths(pos_histories,seg_ids, ep, root_id)
         # if filter_merge:
         #     for key in merges:
-        if merges_root.shape[0] > 0:
+        if merges.shape[0] > 0:
             merges_root = merges[(merges.M1 == root_id) | (merges.M2 == root_id)]
             if merges_root.iloc[0].M1 == root_id:
                 merges_root.rename({"M1":"root_id", "M2":"segment_id"})
@@ -95,38 +92,13 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             merges_root.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
         if save == "nvq":
             import neuvueclient as Client
-            print(time.time()-tic)
-            agents_dict = {"Root_id": root_id, "Endpoint":endpoint,
-                           "Nucleus_id":nucleus_id, "time":time_point, "Merges": weights_dict}
-
+            duration = time.time()-tic1
+            print("DURATION", duration)
+            metadata = {'time':time_point, 'duration':duration, 'device':device,'bbox':bound, 'bbox_em':bound_EM}
             C = Client.NeuvueQueue("http://neuvuequeue-server/")
-            C.post_agents(**agents_dict)
+            C.post_agent(root_id, nucleus_id, endpoint, weights_dict, metadata)
 
-        if save == "sqs":
-
-            weights_dict = dict(zip(merges_root.seg_id, merges_root.Weight))
-
-            agents_dict = {"Root_id": root_id, "Endpoint":endpoint, "Hash":hash, "Merges": weights_dict}
-            att_dict = {
-                            'root_id': {
-                                'StringValue': str(root_id),
-                                'DataType': 'String',
-                            },
-                            'endpoint': {
-                                'StringValue': ','.join(endpoint.astype(str)),
-                                'DataType': 'String',
-                            },
-                            'merges': {
-                                'StringValue': str(merges_root.seg_id),
-                                'DataType': 'String',
-                            },
-                            'weights': {
-                                'StringValue': str(merges_root.Weight),
-                                'DataType': 'String',
-                            }
-                        }
-            sqs.send_one("Agents", att_dict)
-
+            sqs.send_mem_to_cloud(mem_seg, bound_EM)
         return merges, merges_root, pos_matrix, seg
 
 def visualize_merges(merges_root, seg, root_id):
