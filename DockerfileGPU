@@ -1,10 +1,9 @@
-FROM python:3.9
+FROM nvidia/cuda
 LABEL maintainer "Justin Joyce <Justin.Joyce@jhuapl.edu>"
 
 COPY . /root/campfire
 COPY neuvuequeue.cfg /root/.neuvuequeue/neuvuequeue.cfg
 COPY credentials /root/.aws/credentials
-COPY cave-secret.json /root/.cloudvolume/secrets/cave-secret.json
 
 WORKDIR /root/campfire
 RUN pip3 install --upgrade pip
