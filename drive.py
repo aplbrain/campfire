@@ -25,6 +25,7 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             nucleus_id = int(ep_msg.message_attributes['nucleus_id']['StringValue'])
             time_point = int(ep_msg.message_attributes['time']['StringValue'])
             ep = np.array([float(p) for p in ep_msg.body.split(',')])
+            print(ep, root_id, nucleus_id, time_point, resolution)
             if delete:
                 ep_msg.delete()
         endpoint = np.divide(ep, resolution).astype('int')
