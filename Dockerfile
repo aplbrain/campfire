@@ -8,7 +8,7 @@ COPY cave-secret.json /root/.cloudvolume/secrets/cave-secret.json
 
 WORKDIR /root/campfire
 RUN pip3 install --upgrade pip
-RUN pip3 install -r requirements.txt
 RUN pip3 install -e ./neuvue-client
+RUN pip3 install -r requirements.txt
 
 CMD [ "python3", "drive.py", "1", "radius=(100,100,10)", "resolution=(8,8,40)", "unet_bound_mult=4", "ep=sqs", "save=sqs","device=cpu"]
