@@ -9,12 +9,15 @@ from agents.run import run_agents
 import aws.sqs as sqs
 import sys
 import time
+import ast
 
 def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
     tic1=time.time()
     queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-
+    resolution = [int(x) for x in resolution]
+    radius = [int(x) for x in radius]
+    unet_bound_mult = int(unet_bound_mult)
     n = int(n)
     if n == -1:
         n = int(1e10)
@@ -24,8 +27,7 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             root_id = int(ep_msg.message_attributes['root_id']['StringValue'])
             nucleus_id = int(ep_msg.message_attributes['nucleus_id']['StringValue'])
             time_point = int(ep_msg.message_attributes['time']['StringValue'])
-            ep = np.array([float(p) for p in ep_msg.body.split(',')])
-            print(ep, root_id, nucleus_id, time_point, resolution)
+            ep = [float(p) for p in ep_msg.body.split(',')]
             if delete:
                 ep_msg.delete()
         endpoint = np.divide(ep, resolution).astype('int')
@@ -63,7 +65,7 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             (agents.sensor.PrecomputedSensor(), .2),
             (agents.sensor.MembraneSensor(mem_to_run), 0),
             ]
-
+        
         pos_histories, seg_ids, agent_ids=run_agents(mem=mem_to_run, sensor_list=sensor_list,
                                                     precompute_fn=precomp_file_path+'.npz',
                                                     max_vel=.9,n_steps=500,segmentation=seg, root_id=root_id)
@@ -73,34 +75,31 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
         # if filter_merge:
         #     for key in merges:
         if merges.shape[0] > 0:
-            merges_root = merges[(merges.M1 == root_id) | (merges.M2 == root_id)]
-            if merges_root.iloc[0].M1 == root_id:
-                merges_root.rename({"M1":"root_id", "M2":"segment_id"})
-            else:
-                merges_root.rename({"M2":"root_id", "M1":"segment_id"})
             client = CAVEclient('minnie65_phase3_v1')
-            merges_root.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
-            for seg_id in merges_root.unique():
+            #merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
+            for seg_id in merges.seg_id.unique():
                 # Double check
                 if get_soma(seg_id, client) > 0:
                     print("FOUND SOMA in DOUBLE CHECK")
-                    merges_root = merges_root[merges_root.segment_id != seg_id]
-            weights_dict = dict(zip(merges_root.seg_id, merges_root.Weight))
+                    merges = merges[merges.seg_id != seg_id]
+            seg_ids = [int (x) for x in merges.seg_id]
+            
+            weights = [int(x) for x in merges.Weight]
+            weights_dict = dict(zip(seg_ids, weights))
         else:
             weights_dict = {}
         if save == "pd":
             merges.to_csv(f"./merges_{root_id}_{endpoint}.csv")
-            merges_root.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
         if save == "nvq":
             import neuvueclient as Client
             duration = time.time()-tic1
             print("DURATION", duration)
-            metadata = {'time':time_point, 'duration':duration, 'device':device,'bbox':bound, 'bbox_em':bound_EM}
-            C = Client.NeuvueQueue("http://neuvuequeue-server/")
-            C.post_agent(root_id, nucleus_id, endpoint, weights_dict, metadata)
-
+            print(type(duration), type(device))
+            metadata = {'time':str(time_point), 'duration':int(duration), 'device':device,'bbox':[int(x) for x in bound], 'bbox_em':[int(x) for x in bound_EM]}
+            C = Client.NeuvueQueue("https://queue.neuvue.io")
+            print(type(root_id), type(nucleus_id), type(list(endpoint)), type(weights_dict), type(metadata))
+            C.post_agent(int(root_id), int(nucleus_id), [int(x) for x in endpoint], weights_dict, metadata)
             sqs.send_mem_to_cloud(mem_seg, bound_EM)
-        return merges, merges_root, pos_matrix, seg
 
 def visualize_merges(merges_root, seg, root_id):
     mset = set(merges_root.M1)

@@ -35,7 +35,10 @@ def run_agents(**kwargs):
     print("Making Queue")
     agent_queue = create_queue(
         data.shape, 3, sampling_type="extension", root_id=root_id, segmentation=seg)
-
+    for c in agent_queue:
+        for c1 in c:
+            if c1 > 200:
+                print(c)
     print(f"Data Prep Time: {time.time() - tic}. Spawning {len(agent_queue)} agents")
 
     tic = time.time()

@@ -79,7 +79,6 @@ def create_queue(data_shape, n_pts, sampling_type="lin",
         client = CAVEclient('minnie65_phase3_v1')
         for i in ids:
             if get_soma(i, client) > 0:
-                print("FILTERED", i)
                 continue
             n_gen = int((sizes[i] / rid_size) * n_pts)
             centers_list = centers[i]
@@ -194,7 +193,6 @@ class Intersection():
                 # print("POST", to_merge, root_id)
 
             else:
-                print(root_id, presyn, postsyn)
                 continue
 
 
