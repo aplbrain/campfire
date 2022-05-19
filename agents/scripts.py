@@ -197,7 +197,10 @@ class Intersection():
         return merge_df
     
 def merge_paths(path_list,rids,ep,root_id):
-    inter = Intersection(path_list,rids)
+    try:
+        inter = Intersection(path_list,rids)
+    except:
+        return {}
     inter.concArrays()
     inter.sortList()
     clash =  inter.clash()
