@@ -14,7 +14,7 @@ import time
 import ast
 
 def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
-    queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
+    queue_url_endpts = sqs.get_or_create_queue('Endpoints')
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
     resolution = [int(x) for x in resolution]
     radius = [int(x) for x in radius]
@@ -110,7 +110,6 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
 
             pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
             vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
-            #sqs.send_mem_to_cloud(mem_seg.astype(np.uint64), bound_EM)
 
 def visualize_merges(merges_root, seg, root_id):
     mset = set(merges_root.M1)
