@@ -1,4 +1,5 @@
 from caveclient import CAVEclient
+from intern import array
 import pickle
 import numpy as np
 from agents import data_loader
@@ -103,7 +104,12 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             C = Client.NeuvueQueue("https://queue.neuvue.io")
             end = [int(x) for x in endpoint]
             C.post_agent(int(root_id), int(nucleus_id), end, weights_dict, metadata)
-            pickle.dump(mem_seg, open(f"./data/mem_{duration}_{root_id}_{endpoint}.p", "wb"))
+            
+            vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
+            pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
+
+            pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
+            vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
             #sqs.send_mem_to_cloud(mem_seg.astype(np.uint64), bound_EM)
 
 def visualize_merges(merges_root, seg, root_id):
