@@ -1,4 +1,5 @@
 from caveclient import CAVEclient
+import pickle
 import numpy as np
 from agents import data_loader
 from cloudvolume import CloudVolume
@@ -12,22 +13,24 @@ import time
 import ast
 
 def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
-    tic1=time.time()
     queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
     resolution = [int(x) for x in resolution]
     radius = [int(x) for x in radius]
     unet_bound_mult = int(unet_bound_mult)
     n = int(n)
+    ep_param = ep
     if n == -1:
         n = int(1e10)
     for _ in range(n):
-        if ep == 'sqs':
+        tic1=time.time()
+        if ep_param == 'sqs':
             ep_msg = sqs.get_job_from_queue(queue_url_endpts)
             root_id = int(ep_msg.message_attributes['root_id']['StringValue'])
             nucleus_id = int(ep_msg.message_attributes['nucleus_id']['StringValue'])
             time_point = int(ep_msg.message_attributes['time']['StringValue'])
             ep = [float(p) for p in ep_msg.body.split(',')]
+            print(root_id, nucleus_id, ep)
             if delete:
                 ep_msg.delete()
         endpoint = np.divide(ep, resolution).astype('int')
@@ -38,14 +41,16 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
                     endpoint[1] + radius[1],
                     endpoint[2] - radius[2],
                     endpoint[2] + radius[2])
-
+        
         bound_EM  = (endpoint[0] - unet_bound_mult*radius[0], 
                     endpoint[0] + unet_bound_mult*radius[0],
                     endpoint[1] - unet_bound_mult*radius[1],
                     endpoint[1] + unet_bound_mult*radius[1],
                     endpoint[2] - radius[2],
                     endpoint[2] + radius[2])
-
+        print([2*x for x in radius])
+        print([2*x*unet_bound_mult for x in radius])
+        print(unet_bound_mult, ep, save, device, filter_merge, resolution, radius, n)
         seg = np.squeeze(data_loader.get_seg(*bound))
         tic = time.time()
         vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
@@ -93,13 +98,13 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
         if save == "nvq":
             import neuvueclient as Client
             duration = time.time()-tic1
-            print("DURATION", duration)
-            print(type(duration), type(device))
+            print("DURATION", duration, root_id, endpoint, "\n")
             metadata = {'time':str(time_point), 'duration':int(duration), 'device':device,'bbox':[int(x) for x in bound], 'bbox_em':[int(x) for x in bound_EM]}
             C = Client.NeuvueQueue("https://queue.neuvue.io")
-            print(type(root_id), type(nucleus_id), type(list(endpoint)), type(weights_dict), type(metadata))
-            C.post_agent(int(root_id), int(nucleus_id), [int(x) for x in endpoint], weights_dict, metadata)
-            sqs.send_mem_to_cloud(mem_seg, bound_EM)
+            end = [int(x) for x in endpoint]
+            C.post_agent(int(root_id), int(nucleus_id), end, weights_dict, metadata)
+            pickle.dump(mem_seg, open(f"./data/mem_{duration}_{root_id}_{endpoint}.p", "wb"))
+            #sqs.send_mem_to_cloud(mem_seg.astype(np.uint64), bound_EM)
 
 def visualize_merges(merges_root, seg, root_id):
     mset = set(merges_root.M1)
@@ -121,4 +126,4 @@ def visualize_merges(merges_root, seg, root_id):
 
 if __name__ == "__main__":
     n = sys.argv[1]
-    drive(n, **dict(arg.split('=') for arg in sys.argv[3:]))
+    drive(n, **dict(arg.split('=') for arg in sys.argv[2:]))

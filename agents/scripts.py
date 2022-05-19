@@ -8,8 +8,6 @@ def load_membrane_vectors(precomp_fn):
     temp = np.load(precomp_fn)
     data = temp["data"]
     return data
-def ver():
-    print("121")
 
 def precompute_membrane_vectors(mem, memz, precomp_fn=None, mem_radius=3):
     """
@@ -85,7 +83,6 @@ def create_queue(data_shape, n_pts, sampling_type="lin",
             for j in range(len(centers_list)):
                 for _ in range(n_gen):
                     q.append([*centers_list[j]])
-    print("Returning Queue")
     return q
 
 def spawn_from_neuron_extension(neurons, n_pts_per_neuron, ids=None):
@@ -187,10 +184,8 @@ class Intersection():
             to_merge = -1
             if presyn==root_id_compare:
                 to_merge=postsyn
-                # print("PRE", to_merge, root_id)
             elif postsyn==root_id_compare:
                 to_merge=presyn
-                # print("POST", to_merge, root_id)
 
             else:
                 continue
@@ -241,7 +236,6 @@ def get_contacts(seg, root_id):
             points_slice = np.argwhere(seg_copy[:,:,z] == root_id)
             centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
         centers[root_id] = centers_list
-        print(centers[root_id])
         sizes[root_id] = np.sum(seg_copy == root_id)
 
         for rid in close_ids:
@@ -250,7 +244,8 @@ def get_contacts(seg, root_id):
             centers_list = []
             for z in range(np.min(points_z), np.max(points_z)+1):
                 points_slice = np.argwhere(seg_copy[:,:,z] == rid)
-                centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
+                if points_slice.shape[0] > 0:
+                    centers_list.append([*list(np.mean(points_slice, axis=0).astype(np.uint64)), z])
             centers[rid] = centers_list
             sizes[rid] = len(points)
 
