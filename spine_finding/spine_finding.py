@@ -1,4 +1,5 @@
 from caveclient import CAVEclient
+import backoff
 import pcg_skel
 from datetime import datetime
 
@@ -64,7 +65,7 @@ def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
     end_points : TrackedArray
         Skeleton end point vertices in euclidean space
     """
-    sk_l2 = pcg_skel.pcg_skeleton(root_id, **kwargs)
+    sk_l2 = pcg_wrapper(root_id, **kwargs)
     end_points = sk_l2.vertices[sk_l2.end_points, :]
 
     import meshparty
@@ -83,6 +84,10 @@ def find_endpoints(root_id, nucleus_id, time, save_skel, **kwargs):
         meshparty.skeleton_io.write_skeleton_h5(sk_l2,f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5")
     return end_points
 
+@backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=3)
+def pcg_wrapper(root_id, **kwargs):
+    sk_l2 = pcg_skel.pcg_skeleton(root_id, **kwargs)
+    return sk_l2
 
 if __name__ == "__main__":
     client = CAVEclient('minnie65_phase3_v1')

@@ -29,7 +29,7 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
     """
     client = CAVEclient('minnie65_phase3_v1')
     queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
-    queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
+    queue_url_endpts = sqs.get_or_create_queue('Endpoints')
 
   
     n_root_id = 0
@@ -56,7 +56,7 @@ def run_endpoints_sqs(end,delete=False,return_skel=False):
                                 n_parallel=8)
 
         entries=sqs.construct_endpoint_entries(end_points, root_id, time, nucleus_id)
-
+        print(len(entries))
         while(len(entries) > 0):
             entries_send = entries[:10]
             entries = entries[10:]
