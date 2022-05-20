@@ -201,7 +201,7 @@ def merge_paths(path_list,rids,ep,root_id):
     try:
         inter.concArrays()
     except:
-        return {}
+        return pd.DataFrame()
     inter.sortList()
     clash =  inter.clash()
     weighted_merge = inter.merge(clash,ep,root_id)

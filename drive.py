@@ -13,12 +13,13 @@ import sys
 import time
 import ast
 
-def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
+def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
     queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
     resolution = [int(x) for x in resolution]
     radius = [int(x) for x in radius]
-    unet_bound_mult = int(unet_bound_mult)
+    unet_bound_mult = float(unet_bound_mult)
+    unet_bound = [int(x*float(unet_bound_mult)) for x in radius]
     n = int(n)
     ep_param = ep
     if n == -1:
@@ -44,10 +45,10 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
                     endpoint[2] - radius[2],
                     endpoint[2] + radius[2])
         
-        bound_EM  = (endpoint[0] - unet_bound_mult*radius[0], 
-                    endpoint[0] + unet_bound_mult*radius[0],
-                    endpoint[1] - unet_bound_mult*radius[1],
-                    endpoint[1] + unet_bound_mult*radius[1],
+        bound_EM  = (endpoint[0] - unet_bound[0], 
+                    endpoint[0] + unet_bound[0],
+                    endpoint[1] - unet_bound[1],
+                    endpoint[1] + unet_bound[1],
                     endpoint[2] - radius[2],
                     endpoint[2] + radius[2])
         seg = np.squeeze(data_loader.get_seg(*bound))
@@ -59,8 +60,8 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
         except OutOfBoundsError:
             continue
         mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/best_metric_model_segmentation2d_dict.pth", device_s=device)
-        mem_to_run = mem_seg[(unet_bound_mult-1)*radius[0]:(unet_bound_mult+1)*radius[0],
-                        (unet_bound_mult-1)*radius[1]:(unet_bound_mult+1)*radius[1], :].astype(float)
+        mem_to_run = mem_seg[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
+                        int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
         print(f"Seg time: {time.time() - tic}")
         tic = time.time()
 
@@ -101,10 +102,11 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             import neuvueclient as Client
             duration = time.time()-tic1
             print("DURATION", duration, root_id, endpoint, "\n")
-            metadata = {'time':str(time_point), 'duration':int(duration), 'device':device,'bbox':[int(x) for x in bound], 'bbox_em':[int(x) for x in bound_EM]}
+            metadata = {'time':str(time_point), 'duration':str(duration), 'device':device,'bbox':[str(x) for x in bound], 'bbox_em':[str(x) for x in bound_EM]}
             C = Client.NeuvueQueue("https://queue.neuvue.io")
-            end = [int(x) for x in endpoint]
-            C.post_agent(int(root_id), int(nucleus_id), end, weights_dict, metadata)
+            end = [str(x) for x in endpoint]
+            print(str(root_id), str(nucleus_id), end, weights_dict, metadata)
+            C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata)
             
             vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
             pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
