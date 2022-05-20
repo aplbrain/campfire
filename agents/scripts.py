@@ -197,11 +197,11 @@ class Intersection():
         return merge_df
     
 def merge_paths(path_list,rids,ep,root_id):
+    inter = Intersection(path_list,rids)
     try:
-        inter = Intersection(path_list,rids)
+        inter.concArrays()
     except:
         return {}
-    inter.concArrays()
     inter.sortList()
     clash =  inter.clash()
     weighted_merge = inter.merge(clash,ep,root_id)
@@ -236,6 +236,8 @@ def get_contacts(seg, root_id):
         points_z = points[:,2]
         centers_list = []
         for z in range(np.min(points_z), np.max(points_z)+1):
+            if z < 2 or z > 198:
+                continue
             points_slice = np.argwhere(seg_copy[:,:,z] == root_id)
             centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
         centers[root_id] = centers_list
