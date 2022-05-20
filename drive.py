@@ -24,6 +24,7 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
     if n == -1:
         n = int(1e10)
     for _ in range(n):
+        print(_)
         tic1=time.time()
         if ep_param == 'sqs':
             ep_msg = sqs.get_job_from_queue(queue_url_endpts)
@@ -49,14 +50,14 @@ def drive(n, radius=(100,100,10), resolution=(8,8,40), unet_bound_mult=2, ep='sq
                     endpoint[1] + unet_bound_mult*radius[1],
                     endpoint[2] - radius[2],
                     endpoint[2] + radius[2])
-        print([2*x for x in radius])
-        print([2*x*unet_bound_mult for x in radius])
-        print(unet_bound_mult, ep, save, device, filter_merge, resolution, radius, n)
         seg = np.squeeze(data_loader.get_seg(*bound))
         tic = time.time()
+        
         vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-
-        em = np.squeeze(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3], bound_EM[4]:bound_EM[5]])
+        try:
+            em = np.squeeze(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3], bound_EM[4]:bound_EM[5]])
+        except OutOfBoundsError:
+            continue
         mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/best_metric_model_segmentation2d_dict.pth", device_s=device)
         mem_to_run = mem_seg[(unet_bound_mult-1)*radius[0]:(unet_bound_mult+1)*radius[0],
                         (unet_bound_mult-1)*radius[1]:(unet_bound_mult+1)*radius[1], :].astype(float)
