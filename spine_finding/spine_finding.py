@@ -83,6 +83,7 @@ def find_endpoints(root_id, nucleus_id, time, pt_position, **kwargs):
 
     return end_points
 
+# Backoff gives retries to deal with timeout issue
 @backoff.on_exception(backoff.expo, requests.exceptions.RequestException, max_tries=3)
 def pcg_wrapper(root_id, **kwargs):
     sk_l2 = pcg_skel.pcg_skeleton(root_id, **kwargs)
