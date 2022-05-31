@@ -104,3 +104,4 @@ if __name__ == "__main__":
     plt.subplot(122)
     plt.imshow(seg[:, :, 50])
     plt.show()
+
