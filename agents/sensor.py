@@ -170,8 +170,10 @@ class AdjacencySensor(Sensor):
 
         # Second term here doesn't work yet. Intent is to kill the agent when it sees another agent
         # But we need to ensure that the agent doesn't kill itself on its own trail behind it. TODO
-
-        return resultant_vector
+        if 'resultant_vector' in locals:
+            return resultant_vector
+        else:
+            raise NotImplementedError
 
 
 class PrecomputedSensor(Sensor):
