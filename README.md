@@ -1,2 +1,3 @@
-# campfire
-Complementary Automated Methods for Proofreading
+## campfire on zhang-testing 
+
+Bleeding-edge branch for testing and remote deployment 
