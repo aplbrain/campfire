@@ -28,13 +28,13 @@ def run_agents(**kwargs):
     n_steps = kwargs["n_steps"]
     seg = kwargs["segmentation"]
     root_id = kwargs["root_id"]
+    endpoint_nm = kwargs["endpoint_nm"]
     # -------------------
     # Preparing Data, Starting Locs and Swarm
 
     data = load_membrane_vectors(precompute_fn)
-    agent_queue = create_queue(
-        data.shape, 3, sampling_type="extension", root_id=root_id, segmentation=seg)
-
+    agent_queue, soma, polarity = create_queue(
+        data.shape, 100, sampling_type="extension", root_id=root_id, segmentation=seg, endpoint_nm=endpoint_nm)
     # Uncomment this line to add agent spawning linearly throughout the volume
     # agent_queue += create_queue(data.shape, n_pts_per_dim, sampling_type="lin")
 
@@ -52,6 +52,7 @@ def run_agents(**kwargs):
         parallel=False,
     )
     count = swarm.get_count()
+    print(count, "agents spawned")
     print("\nAgent Spawning Prep Time", time.time() - tic)
     # Run agents
     tic = time.time()
@@ -65,4 +66,4 @@ def run_agents(**kwargs):
     pos_histories = [a.get_position_history() for a in swarm.agents]
     seg_ids = [a.seg_id for a in swarm.agents]
     agent_ids = [a.agent_id for a in swarm.agents]
-    return pos_histories, seg_ids, agent_ids
+    return pos_histories, seg_ids, agent_ids, soma, polarity
