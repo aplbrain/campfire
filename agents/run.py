@@ -34,7 +34,7 @@ def run_agents(**kwargs):
 
     data = load_membrane_vectors(precompute_fn)
     agent_queue, soma, polarity = create_queue(
-        data.shape, 100, sampling_type="extension", root_id=root_id, segmentation=seg, endpoint_nm=endpoint_nm)
+        data.shape, 500, sampling_type="extension", root_id=root_id, segmentation=seg, endpoint_nm=endpoint_nm)
     # Uncomment this line to add agent spawning linearly throughout the volume
     # agent_queue += create_queue(data.shape, n_pts_per_dim, sampling_type="lin")
 

@@ -12,7 +12,6 @@ import aws.sqs as sqs
 import sys
 import time
 import ast
-
 def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
     queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
@@ -74,11 +73,11 @@ def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             (agents.sensor.MembraneSensor(mem_to_run), 0),
             ]
         
-        pos_histories, seg_ids, agent_ids=run_agents(mem=mem_to_run, sensor_list=sensor_list,
+        pos_histories, seg_ids, agent_ids, soma, polarities=run_agents(mem=mem_to_run, sensor_list=sensor_list,
                                                     precompute_fn=precomp_file_path+'.npz',
-                                                    max_vel=.9,n_steps=500,segmentation=seg, root_id=root_id)
+                                                    max_vel=.9,n_steps=10000,segmentation=seg, root_id=root_id)
         # find merges of agents from root_id
-        pos_matrix = create_post_matrix(pos_histories, mem_to_run.shape)
+        pos_matrix = create_post_matrix(pos_histories, mem_to_run.shape, soma, polarities)
         merges = merge_paths(pos_histories,seg_ids, ep, root_id)
         # if filter_merge:
         #     for key in merges:
@@ -131,6 +130,100 @@ def visualize_merges(merges_root, seg, root_id):
         seg_merge_output[seg == seg_id] = i
     seg_merge_output[seg_merge_output==0]=np.nan
     return opacity_merges, seg_merge_output
+
+def drive_gt(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',
+          cnn_weights='thick',filter_merge=True,delete=True, endp=(0,0,0), nucleus_id=0, root_id=0, time_point=0):
+
+    vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
+    resolution = [int(x) for x in resolution]
+    radius = [int(x) for x in radius]
+    unet_bound_mult = float(unet_bound_mult)
+    unet_bound = [int(x*float(unet_bound_mult)) for x in radius]
+    n = int(n)
+    ep_param = ep
+    
+    tic1=time.time()
+    if ep_param == 'sqs':
+        ep_msg = sqs.get_job_from_queue(queue_url_endpts)
+        root_id = int(ep_msg.message_attributes['root_id']['StringValue'])
+        nucleus_id = int(ep_msg.message_attributes['nucleus_id']['StringValue'])
+        time_point = int(ep_msg.message_attributes['time']['StringValue'])
+        ep = [float(p) for p in ep_msg.body.split(',')]
+        print(root_id, nucleus_id, ep)
+        if delete:
+            ep_msg.delete()
+    else:
+        root_id = root_id
+        nucleus_id = nucleus_id
+        time_point = time_point
+        ep = [float(p) for p in endp]
+    endpoint = np.divide(ep, resolution).astype('int')
+    precomp_file_path = f"./precompute_{root_id}_{endpoint}"
+    bound  = (endpoint[0] - radius[0], 
+                endpoint[0] + radius[0],
+                endpoint[1] - radius[1],
+                endpoint[1] + radius[1],
+                endpoint[2] - radius[2],
+                endpoint[2] + radius[2])
+
+    bound_EM  = (endpoint[0] - unet_bound[0], 
+                endpoint[0] + unet_bound[0],
+                endpoint[1] - unet_bound[1],
+                endpoint[1] + unet_bound[1],
+                endpoint[2] - radius[2],
+                endpoint[2] + radius[2])
+    seg = np.squeeze(data_loader.get_seg(*bound))
+    tic = time.time()
+
+    vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
+    try:
+        em = np.squeeze(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3], bound_EM[4]:bound_EM[5]])
+    except OutOfBoundsError:
+        print("OOB")
+    errors_shift, errors_zero = scripts.shift_detect(em, 100, 1, 1, 10)
+
+#     if cnn_weights == 'thick':
+#         mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/best_metric_model_segmentation2d_dict.pth", device_s=device)
+#     elif cnn_weights == 'thin':
+#         mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/model_CREMI_2D.pth", device_s=device)
+    mem_seg = pickle.load(open("./mem_dump.p", "rb"))
+    mem_seg = scripts.remove_shifts(mem_seg, errors_shift+errors_zero, zero_or_remove='zero')
+
+    mem_to_run = mem_seg[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
+                    int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
+    print(f"Seg time: {time.time() - tic}")
+    tic = time.time()
+
+    compute_vectors = scripts.precompute_membrane_vectors(mem_to_run, mem_to_run, precomp_file_path, 3)
+    print(f"Convolution time: {time.time() - tic}")
+
+    sensor_list = [
+        (agents.sensor.BrownianMotionSensor(), .1),
+        (agents.sensor.PrecomputedSensor(), .2),
+        (agents.sensor.MembraneSensor(mem_to_run), 0),
+        ]
+
+    pos_histories, seg_ids, agent_ids, soma, polarities=run_agents(mem=mem_to_run, sensor_list=sensor_list,
+                                                precompute_fn=precomp_file_path+'.npz',
+                                                max_vel=.9,n_steps=10,segmentation=seg,
+                                                root_id=root_id, endpoint_nm=ep)
+    # find merges of agents from root_id
+    pos_matrix, merge_d = scripts.create_post_matrix(pos_histories, seg, mem_to_run.shape)
+    merges = scripts.position_merge(ep, root_id, merge_d)
+    # if filter_merge:
+    #     for key in merges:
+    if merges.shape[0] > 0:
+        client = CAVEclient('minnie65_phase3_v1')
+        #merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
+        seg_ids = [int (x) for x in merges.Extension]
+
+        weights = [int(x) for x in merges.Weight]
+        weights_dict = dict(zip(seg_ids, weights))
+    else:
+        weights_dict = {}
+    if save == "pd":
+        merges.to_csv(f"./merges_{root_id}_{endpoint}.csv")
+    return mem_seg, merges, pos_matrix, seg_ids, em, seg, compute_vectors
 
 if __name__ == "__main__":
     n = sys.argv[1]
