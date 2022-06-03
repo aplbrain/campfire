@@ -5,7 +5,7 @@ import numpy as np
 from agents import data_loader
 from cloudvolume import CloudVolume
 from membrane_detection import membranes
-from agents.scripts import precompute_membrane_vectors, create_post_matrix, merge_paths, get_soma, get_syn_counts
+from agents.scripts import precompute_membrane_vectors, create_post_matrix, merge_paths, get_soma # get_syn_counts
 import agents.sensor
 from agents.run import run_agents
 import aws.sqs as sqs
@@ -13,8 +13,9 @@ import sys
 import time
 import ast
 
-def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
-    queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
+def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',
+          cnn_weights='thick',filter_merge=True,delete=True, endp=(0,0,0), nucleus_id=0, root_id=0, time_point=0):
+    # queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
     resolution = [int(x) for x in resolution]
     radius = [int(x) for x in radius]
@@ -36,6 +37,11 @@ def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sq
             print(root_id, nucleus_id, ep)
             if delete:
                 ep_msg.delete()
+        else:
+            root_id = root_id
+            nucleus_id = nucleus_id
+            time_point = time_point
+            ep = [float(p) for p in endp] 
         endpoint = np.divide(ep, resolution).astype('int')
         precomp_file_path = f"./precompute_{root_id}_{endpoint}"
         bound  = (endpoint[0] - radius[0], 
@@ -78,18 +84,18 @@ def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sq
                                                     precompute_fn=precomp_file_path+'.npz',
                                                     max_vel=.9,n_steps=500,segmentation=seg, root_id=root_id)
         # find merges of agents from root_id
-        pos_matrix = create_post_matrix(pos_histories, mem_to_run.shape)
+        pos_matrix, merge_d = create_post_matrix(pos_histories, seg, mem_to_run.shape)
         merges = merge_paths(pos_histories,seg_ids, ep, root_id)
         # if filter_merge:
         #     for key in merges:
         if merges.shape[0] > 0:
             client = CAVEclient('minnie65_phase3_v1')
-            #merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
-            for seg_id in merges.seg_id.unique():
-                # Double check
-                if get_soma(seg_id, client) > 0:
-                    print("FOUND SOMA in DOUBLE CHECK")
-                    merges = merges[merges.seg_id != seg_id]
+            # merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
+            # for seg_id in merges.seg_id.unique():
+            #     # Double check
+            #     if get_soma(seg_id, client) > 0:
+            #         print("FOUND SOMA in DOUBLE CHECK")
+            #         merges = merges[merges.seg_id != seg_id]
             seg_ids = [int (x) for x in merges.seg_id]
             
             weights = [int(x) for x in merges.Weight]
@@ -113,6 +119,9 @@ def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sq
 
             pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
             vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
+        
+    return mem_seg, merges, pos_matrix, seg_ids, em, seg, compute_vectors
+
 
 def visualize_merges(merges_root, seg, root_id):
     mset = set(merges_root.M1)
@@ -130,6 +139,7 @@ def visualize_merges(merges_root, seg, root_id):
         opacity_merges[seg == seg_id] = merges_root[(merges_root.M1 == seg_id) | (merges_root.M2 == seg_id)]["Weight"] / sum_weight
         seg_merge_output[seg == seg_id] = i
     seg_merge_output[seg_merge_output==0]=np.nan
+
     return opacity_merges, seg_merge_output
 
 if __name__ == "__main__":

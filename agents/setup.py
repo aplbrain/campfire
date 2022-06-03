@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 from codecs import open
 from os import path
-from agents import __version__
+# from agents import __version__
 
 
 here = path.abspath(path.dirname(__file__))
@@ -21,7 +21,7 @@ dependency_links = [
 
 setup(
     name="agents",
-    version=__version__,
+    version=1.0,
     description="Volumetric Graph Reconstruction",
     long_description=long_description,
     # download_url='https://github.com/j6k4m8/jque/tarball/' + __version__,
