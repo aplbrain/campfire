@@ -19,7 +19,7 @@ def supervoxels(x_pre, x_post, y_pre, y_post, z_pre, z_post, simplify_supervoxel
     sv_ids = sv_ids[x_pre:x_post, y_pre:y_post, z_pre:z_post]
     for sv_id in sv_ids.unique():
         sv_ids[sv_ids==sv_id] = cave_client.chunkedgraph.get_root_id(supervoxel_id=sv_id)
-
+    
     return sv_ids
 
 def get_syn_counts(root_id:str):
@@ -45,3 +45,6 @@ def get_num_soma(root_id:str):
         filter_equal_dict={'pt_root_id':root_id}
     )
     return len(soma)
+
+if __name__ == "__main__":
+    pass

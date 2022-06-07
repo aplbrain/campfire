@@ -249,7 +249,7 @@ def multi_slice_viewer(membranes, positions=None, start_slice=-1):
     """
     View 3d volume one slice at a time
     :param membranes: 3D numpy array of greyscale data
-    :param positions: [Optional] Pointcloud of agent positions
+    :param positions: [\Optional] Pointcloud of agent positions
     :return:
     """
     if positions is None:
@@ -421,7 +421,7 @@ def shift_detect(em, radius, n_windows, n_hits=-1,threshold=10,zero_threshold=.7
             errors[i] = False
     return errors, errors_zero
 
-def remove_shifts(em, errors,zero_or_remove='zero'):
+def remove_shifts(em, errors, zero_or_remove='zero'):
     if zero_or_remove == 'zero':
         em[:,:,errors] = 0
     elif zero_or_remove=='remove':
