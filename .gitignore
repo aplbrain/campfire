@@ -8,3 +8,5 @@ TESTING*.*
 *.egg-info
 
 .cloudvolume/
+
+arch*.*

@@ -6,7 +6,6 @@ from caveclient import CAVEclient
 import cv2 
 import matplotlib.pyplot as plt
 import numpy as np
-import backoff
 
 def load_membrane_vectors(precomp_fn):
     # If there already is a saved out precompute file, just load it!
