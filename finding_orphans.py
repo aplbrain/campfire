@@ -21,7 +21,7 @@ def get_unqiue_seg_ids_em(x_min, x_max, y_min, y_max, z_min, z_max):
     # List of all unique seg ids in the 3d subvolume
     unique_seg_ids_sv = np.unique(seg_ids_sv)
 
-    # Removing the first element of unique_seg_ids_sv because it is 0 -- DUNNO WHY LOOK AT THIS AGAIN!
+    # Removing the first element (artifacts) of unique_seg_ids_sv
     unique_seg_ids_sv = np.delete(unique_seg_ids_sv, 0)
 
     # Organizing seg ids in subvolume by size
@@ -37,8 +37,7 @@ def get_unqiue_seg_ids_em(x_min, x_max, y_min, y_max, z_min, z_max):
 
 # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
 def get_orphans(x_min, x_max, y_min, y_max, z_min, z_max):
-    unique_seg_ids = get_unqiue_seg_ids_em(
-        x_min, x_max, y_min, y_max, z_min, z_max)
+    unique_seg_ids = get_unqiue_seg_ids_em(x_min, x_max, y_min, y_max, z_min, z_max)
 
     # Getting all the orphans
     orphans = []
