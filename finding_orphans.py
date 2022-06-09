@@ -37,17 +37,34 @@ def get_unqiue_seg_ids_em(x_min, x_max, y_min, y_max, z_min, z_max):
 
 # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
 def get_orphans(x_min, x_max, y_min, y_max, z_min, z_max):
-    unique_seg_ids = get_unqiue_seg_ids_em(x_min, x_max, y_min, y_max, z_min, z_max)
+    unique_seg_ids = get_unqiue_seg_ids_em(
+        x_min, x_max, y_min, y_max, z_min, z_max)
 
     # Getting all the orphans
-    orphans = []
+    orphans = {}
 
     for seg_id_and_size in tqdm(unique_seg_ids):
         seg_id = seg_id_and_size[0]
         if (data_loader.get_num_soma(str(seg_id)) == 0):
-            orphans.append(seg_id)
+            orphans[seg_id] = [seg_id_and_size[1]]
 
     return orphans  # list of seg_ids that are orphans in given subvolume
+
+
+# Input: processes is a dictionary with key = seg_id, value = list of attributes
+# Returns: updated processes so that value also includes the type of the process
+def get_process_type(processes):
+    for process in tqdm(processes.items()):
+        num_pre_synapses, num_post_synapses = data_loader.get_syn_counts(
+            str(processes[0]))
+        if (num_pre_synapses > num_post_synapses):
+            process[1].append('axon')
+        elif (num_post_synapses > num_pre_synapses):
+            process[1].append('dendrite')
+        else:
+            process[1].append('unconfirmed')
+    return processes
+
 
 if __name__ == "__main__":
     x_min = 115167
@@ -56,6 +73,7 @@ if __name__ == "__main__":
     y_max = 93796
     z_min = 21305
     z_max = 21315
-    orphans = get_orphans (x_min, x_max, y_min, y_max, z_min, z_max)
+    orphans = get_orphans(x_min, x_max, y_min, y_max, z_min, z_max)
     print("Number of orphans:", len(orphans))
+    get_process_type(orphans)
     print("Orphans", orphans)
