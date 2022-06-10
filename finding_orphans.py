@@ -1,4 +1,5 @@
 import sys
+from collections.abc import Iterable
 from agents import data_loader
 from caveclient import CAVEclient
 from cloudvolume import CloudVolume, VolumeCutout
@@ -6,70 +7,129 @@ import numpy as np
 from tqdm import tqdm
 
 
-# Gets all the seg ids within a given subvolume and organizes by size of process
-def get_unique_seg_ids_em(x_min, x_max, y_min, y_max, z_min, z_max):
-
-    # Get entire EM data - uncomment after testing
-    # em = CloudVolume('s3://bossdb-open-data/iarpa_microns/minnie/minnie65/seg', use_https=True, mip=0, parallel=True, fill_missing=True, progress=True)
-
-    # Get seg ids in the specified subvolume
-    seg_ids_sv = data_loader.get_seg(x_min, x_max, y_min, y_max, z_min, z_max)
-
-    # Get rid of the 4th dimension since its magnitude is 1
-    seg_ids_sv = np.squeeze(seg_ids_sv)
-
-    # List of all unique seg ids in the 3d subvolume
-    unique_seg_ids_sv = np.unique(seg_ids_sv)
-
-    # Removing the first element (artifacts) of unique_seg_ids_sv
-    """
-    Drop all zeros in array instead of only first, handles edge cases
-    unique_seg_ids_sv = np.delete(unique_seg_ids_sv, 0)
-    """
-
-    unique_seg_ids_sv = unique_seg_ids_sv[unique_seg_ids_sv != 0]
-
-    # Organizing seg ids in subvolume by size
-    seg_ids_by_size = {}
-    for seg_id in tqdm(unique_seg_ids_sv):
-        # seg_ids_by_size[seg_id] = int(em[em == seg_id].sum()) # Uncomment after testing to organize seg ids by size considering whole data
-        seg_ids_by_size[seg_id] = int(seg_ids_sv[seg_ids_sv == seg_id].sum())
-
-    seg_ids_by_size = sorted(seg_ids_by_size.items(),
-                             key=lambda x: x[1], reverse=True)
-    return seg_ids_by_size  # Sorted in descending order
+class OrphanError(Exception):
+    pass
 
 
-# Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
-def get_orphans(x_min, x_max, y_min, y_max, z_min, z_max):
-    unique_seg_ids = get_unique_seg_ids_em(
-        x_min, x_max, y_min, y_max, z_min, z_max)
+class Orphans:
+    def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
+        self.x_min = x_min
+        self.x_max = x_max
+        self.y_min = y_min
+        self.y_max = y_max
+        self.z_min = z_min
+        self.z_max = z_max
+    
+    # Gets all the seg ids within a given subvolume and organizes by size of process
+    def get_unique_seg_ids_em(self) -> list:
 
-    # Getting all the orphans
-    orphans = {}
+        # Get entire EM data - uncomment after testing
+        # em = CloudVolume('s3://bossdb-open-data/iarpa_microns/minnie/minnie65/seg', use_https=True, mip=0, parallel=True, fill_missing=True, progress=True)
 
-    for seg_id_and_size in tqdm(unique_seg_ids):
-        seg_id = seg_id_and_size[0]
-        if (data_loader.get_num_soma(str(seg_id)) == 0):
-            orphans[seg_id] = [seg_id_and_size[1]]
+        # Get seg ids in the specified subvolume
+        seg_ids_sv = data_loader.get_seg(self.x_min, self.x_max, self.y_min,
+                                        self.y_max, self.z_min, self.z_max)
 
-    return orphans  # list of seg_ids that are orphans in given subvolume
+        # Get rid of the 4th dimension since its magnitude is 1
+        seg_ids_sv = np.squeeze(seg_ids_sv)
+
+        # List of all unique seg ids in the 3d subvolume
+        unique_seg_ids_sv = np.unique(seg_ids_sv)
+
+        # Removing the first element (artifacts) of unique_seg_ids_sv
+        """
+        Drop all zeros in array instead of only first, handles edge cases
+        unique_seg_ids_sv = np.delete(unique_seg_ids_sv, 0)
+        """
+
+        unique_seg_ids_sv = unique_seg_ids_sv[unique_seg_ids_sv != 0]
+
+        # Organizing seg ids in subvolume by size
+        seg_ids_by_size = {}
+        for seg_id in (pbar:=tqdm(unique_seg_ids_sv)):
+            pbar.set_description('Organizing seg_ids by size')
+            # seg_ids_by_size[seg_id] = int(em[em == seg_id].sum()) # Uncomment after testing to organize seg ids by size considering whole data
+            seg_ids_by_size[seg_id] = int(seg_ids_sv[seg_ids_sv == seg_id].sum())
+
+        seg_ids_by_size = sorted(seg_ids_by_size.items(),
+                                key=lambda x: x[1], reverse=True)
+        return seg_ids_by_size  # Sorted in descending order
 
 
-# Input: processes is a dictionary with key = seg_id, value = list of attributes
-# Returns: updated processes so that value also includes the type of the process
-def get_process_type(processes):
-    for seg_id, attributes in processes.items():
-        num_pre_synapses, num_post_synapses = data_loader.get_syn_counts(
-            str(seg_id))
-        if (num_pre_synapses > num_post_synapses):
-            attributes.append('axon')
-        elif (num_post_synapses > num_pre_synapses):
-            attributes.append('dendrite')
-        else:
-            attributes.append('unconfirmed')
-    return processes
+    # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
+    def get_orphans(self) -> list:
+        unique_seg_ids = self.get_unique_seg_ids_em()
 
+        # Getting all the orphans
+        orphans = {}
+
+        for seg_id_and_size in (pbar:=tqdm(unique_seg_ids)):
+            pbar.set_description('Finding orphans')
+            seg_id = seg_id_and_size[0]
+            if (data_loader.get_num_soma(str(seg_id)) == 0):
+                orphans[seg_id] = [seg_id_and_size[1]]
+
+        return orphans  # list of seg_ids that are orphans in given subvolume
+
+
+    # Input: processes is a dictionary with key = seg_id, value = list of attributes
+    # Returns: updated processes so that value also includes the type of the process
+    def get_process_type(self, processes:dict) -> dict:
+        for seg_id, attributes in (pbar:=tqdm(processes.items())):
+            pbar.set_description('Finding process type')
+            num_pre_synapses, num_post_synapses = data_loader.get_syn_counts(
+                str(seg_id))
+            if (num_pre_synapses > num_post_synapses):
+                attributes.append('axon')
+            elif (num_post_synapses > num_pre_synapses):
+                attributes.append('dendrite')
+            else:
+                attributes.append('unconfirmed')
+        
+        return processes
+
+
+def bounding_box_coords(point: Iterable, boxdim: Iterable = [100,100,100]) -> list:
+    # Data bounds not validated
+    abs_data_bounds = [26000,220608,30304,161376,14825,27881]
+    # Confirm that entry is 3dim
+    if len(point) != 3:
+        raise OrphanError("Point passed to func bounding_box_coords() must be an iterable of length 3.")
+    if len(boxdim) != 3:
+        raise OrphanError("Box dimensions passed to func bounding_box_coords() must be 3 dimensional")
+    # Check bound validity. Will be replaced by iterable implementation.
+    if point[0]-boxdim[0] < abs_data_bounds[0]:
+        x1 = abs_data_bounds[0]
+    else:
+        x1 = point[0]-boxdim[0]
+    
+    if point[0]+boxdim[0] > abs_data_bounds[1]:
+        x2 = abs_data_bounds[1]
+    else:
+        x2 = point[0]+boxdim[0]
+
+    if point[1]-boxdim[1] < abs_data_bounds[2]:
+        y1 = abs_data_bounds[2]
+    else:
+        y1 = point[1]-boxdim[1]
+
+    if point[1]+boxdim[1] > abs_data_bounds[3]:
+        y2 = abs_data_bounds[3]
+    else:
+        y2 = point[1]+boxdim[1]
+
+    if point[2]-boxdim[2] < abs_data_bounds[4]:
+        z1 = abs_data_bounds[4]
+    else:
+        z1 = point[2]-boxdim[2]
+
+    if point[2]+boxdim[2] > abs_data_bounds[5]:
+        z2 = abs_data_bounds[5]
+    else:
+        z2 = point[2]+boxdim[2]
+    
+    return [x1,x2,y1,y2,z1,z2]
+    
 
 if __name__ == "__main__":
     x_min = 115167
@@ -78,8 +138,11 @@ if __name__ == "__main__":
     y_max = 93796
     z_min = 21305
     z_max = 21315
-    orphans = get_orphans(x_min, x_max, y_min, y_max, z_min, z_max)
+
+    bounds = bounding_box_coords([115267, 91839, 21405])
+    print(bounds)
+    orphanclass = Orphans(*bounds)
+    orphans = orphanclass.get_orphans()
     print("Number of orphans:", len(orphans))
-    print(type(orphans))
-    get_process_type(orphans)
+    orphanclass.get_process_type(orphans)
     print("Orphans", orphans)
