@@ -1,4 +1,3 @@
-from ast import Sub
 from collections.abc import Iterable
 
 
@@ -6,7 +5,7 @@ class SubmoduleException(Exception):
     pass
 
 
-def cast_points_within_bounds(point: Iterable, bounds: Iterable, boxdim=[100,100,100]) -> list:
+def cast_points_within_bounds(point: Iterable, bounds: Iterable, boxdim: Iterable = [100,100,100]) -> list:
     """
     Casts a point within specified bounds.
 
@@ -21,7 +20,7 @@ def cast_points_within_bounds(point: Iterable, bounds: Iterable, boxdim=[100,100
     """
     if len(bounds) != len(point)*2:
         raise SubmoduleException('Dimensions not proportional between bounds and point.')
-    
+        
     db_high = bounds[1::2]
     db_low = bounds[::2]
 
