@@ -5,6 +5,7 @@ from caveclient import CAVEclient
 from cloudvolume import CloudVolume, VolumeCutout
 import numpy as np
 from tqdm import tqdm
+from orphan_extension.utils.cast_to_bounds import cast_points_within_bounds
 
 
 class OrphanError(Exception):
@@ -43,6 +44,7 @@ class Orphans:
         """
 
         unique_seg_ids_sv = unique_seg_ids_sv[unique_seg_ids_sv != 0]
+        unique_seg_ids_sv = unique_seg_ids_sv[unique_seg_ids_sv != None]
 
         # Organizing seg ids in subvolume by size
         seg_ids_by_size = {}
@@ -71,7 +73,6 @@ class Orphans:
 
         return orphans  # list of seg_ids that are orphans in given subvolume
 
-
     # Input: processes is a dictionary with key = seg_id, value = list of attributes
     # Returns: updated processes so that value also includes the type of the process
     def get_process_type(self, processes:dict) -> dict:
@@ -91,44 +92,18 @@ class Orphans:
 
 def bounding_box_coords(point: Iterable, boxdim: Iterable = [100,100,100]) -> list:
     # Data bounds not validated
-    abs_data_bounds = [26000,220608,30304,161376,14825,27881]
+    data_bounds = [26000,220608,30304,161376,14825,27881]
+    
     # Confirm that entry is 3dim
     if len(point) != 3:
         raise OrphanError("Point passed to func bounding_box_coords() must be an iterable of length 3.")
     if len(boxdim) != 3:
         raise OrphanError("Box dimensions passed to func bounding_box_coords() must be 3 dimensional")
-    # Check bound validity. Will be replaced by iterable implementation.
-    if point[0]-boxdim[0] < abs_data_bounds[0]:
-        x1 = abs_data_bounds[0]
-    else:
-        x1 = point[0]-boxdim[0]
     
-    if point[0]+boxdim[0] > abs_data_bounds[1]:
-        x2 = abs_data_bounds[1]
-    else:
-        x2 = point[0]+boxdim[0]
-
-    if point[1]-boxdim[1] < abs_data_bounds[2]:
-        y1 = abs_data_bounds[2]
-    else:
-        y1 = point[1]-boxdim[1]
-
-    if point[1]+boxdim[1] > abs_data_bounds[3]:
-        y2 = abs_data_bounds[3]
-    else:
-        y2 = point[1]+boxdim[1]
-
-    if point[2]-boxdim[2] < abs_data_bounds[4]:
-        z1 = abs_data_bounds[4]
-    else:
-        z1 = point[2]-boxdim[2]
-
-    if point[2]+boxdim[2] > abs_data_bounds[5]:
-        z2 = abs_data_bounds[5]
-    else:
-        z2 = point[2]+boxdim[2]
+    # Check bound validity and cast to new bounds
+    casted_bounds = cast_points_within_bounds(point, data_bounds, boxdim)
     
-    return [x1,x2,y1,y2,z1,z2]
+    return casted_bounds
     
 
 if __name__ == "__main__":
