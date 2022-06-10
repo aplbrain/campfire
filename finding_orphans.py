@@ -20,7 +20,7 @@ class Orphans:
         self.y_max = y_max
         self.z_min = z_min
         self.z_max = z_max
-    
+
     # Gets all the seg ids within a given subvolume and organizes by size of process
     def get_unique_seg_ids_em(self) -> list:
 
@@ -29,7 +29,7 @@ class Orphans:
 
         # Get seg ids in the specified subvolume
         seg_ids_sv = data_loader.get_seg(self.x_min, self.x_max, self.y_min,
-                                        self.y_max, self.z_min, self.z_max)
+                                         self.y_max, self.z_min, self.z_max)
 
         # Get rid of the 4th dimension since its magnitude is 1
         seg_ids_sv = np.squeeze(seg_ids_sv)
@@ -48,24 +48,25 @@ class Orphans:
 
         # Organizing seg ids in subvolume by size
         seg_ids_by_size = {}
-        for seg_id in (pbar:=tqdm(unique_seg_ids_sv)):
+        for seg_id in (pbar := tqdm(unique_seg_ids_sv)):
             pbar.set_description('Organizing seg_ids by size')
             # seg_ids_by_size[seg_id] = int(em[em == seg_id].sum()) # Uncomment after testing to organize seg ids by size considering whole data
-            seg_ids_by_size[seg_id] = int(seg_ids_sv[seg_ids_sv == seg_id].sum())
+            seg_ids_by_size[seg_id] = int(
+                seg_ids_sv[seg_ids_sv == seg_id].sum())
 
         seg_ids_by_size = sorted(seg_ids_by_size.items(),
-                                key=lambda x: x[1], reverse=True)
+                                 key=lambda x: x[1], reverse=True)
         return seg_ids_by_size  # Sorted in descending order
 
-
     # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
-    def get_orphans(self) -> list:
+
+    def get_orphans(self) -> dict:
         unique_seg_ids = self.get_unique_seg_ids_em()
 
         # Getting all the orphans
         orphans = {}
 
-        for seg_id_and_size in (pbar:=tqdm(unique_seg_ids)):
+        for seg_id_and_size in (pbar := tqdm(unique_seg_ids)):
             pbar.set_description('Finding orphans')
             seg_id = seg_id_and_size[0]
             if (data_loader.get_num_soma(str(seg_id)) == 0):
@@ -75,8 +76,8 @@ class Orphans:
 
     # Input: processes is a dictionary with key = seg_id, value = list of attributes
     # Returns: updated processes so that value also includes the type of the process
-    def get_process_type(self, processes:dict) -> dict:
-        for seg_id, attributes in (pbar:=tqdm(processes.items())):
+    def get_process_type(self, processes: dict) -> dict:
+        for seg_id, attributes in (pbar := tqdm(processes.items())):
             pbar.set_description('Finding process type')
             num_pre_synapses, num_post_synapses = data_loader.get_syn_counts(
                 str(seg_id))
@@ -86,17 +87,18 @@ class Orphans:
                 attributes.append('dendrite')
             else:
                 attributes.append('unconfirmed')
-        
+
         return processes
 
 
-def bounding_box_coords(point: Iterable, boxdim: Iterable = [100,100,100]) -> list:
+def bounding_box_coords(point: Iterable, boxdim: Iterable = [100, 100, 100]) -> list:
     # Data bounds not validated
     data_bounds = [26000,220608,30304,161376,14825,27881]
     
     # Confirm that entry is 3dim
     if len(point) != 3:
-        raise OrphanError("Point passed to func bounding_box_coords() must be an iterable of length 3.")
+        raise OrphanError(
+            "Point passed to func bounding_box_coords() must be an iterable of length 3.")
     if len(boxdim) != 3:
         raise OrphanError("Box dimensions passed to func bounding_box_coords() must be 3 dimensional")
     
