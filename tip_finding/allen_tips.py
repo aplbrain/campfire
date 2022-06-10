@@ -65,9 +65,7 @@ def find_endpoints(root_id, **kwargs):
     """
     sk_l2 = pcg_skel.pcg_skeleton(root_id, **kwargs)
     end_points = sk_l2.vertices[sk_l2.end_points, :]
-
     return end_points
-
 
 if __name__ == "__main__":
     client = CAVEclient('minnie65_phase3_v1')

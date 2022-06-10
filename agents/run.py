@@ -33,8 +33,10 @@ def run_agents(**kwargs):
     # Preparing Data, Starting Locs and Swarm
 
     data = load_membrane_vectors(precompute_fn)
-    agent_queue, soma, polarity = create_queue(
-        data.shape, 500, sampling_type="extension", root_id=root_id, segmentation=seg, endpoint_nm=endpoint_nm)
+    agent_queue, polarity = create_queue(
+        data.shape, 100, sampling_type="extension_only", root_id=root_id, segmentation=seg, endpoint_nm=endpoint_nm)
+    if polarity == "Axon":
+        return [], [root_id], []
     # Uncomment this line to add agent spawning linearly throughout the volume
     # agent_queue += create_queue(data.shape, n_pts_per_dim, sampling_type="lin")
 
@@ -66,4 +68,4 @@ def run_agents(**kwargs):
     pos_histories = [a.get_position_history() for a in swarm.agents]
     seg_ids = [a.seg_id for a in swarm.agents]
     agent_ids = [a.agent_id for a in swarm.agents]
-    return pos_histories, seg_ids, agent_ids, soma, polarity
+    return pos_histories, seg_ids, agent_ids

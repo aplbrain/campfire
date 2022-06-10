@@ -73,7 +73,7 @@ def create_queue(data_shape, n_pts, sampling_type="lin",
             for y in range(n_pts):
                 for z in range(n_pts // isotropy):
                     q.append([x_coords[x], y_coords[y], z_coords[z]])
-
+        return q
     if sampling_type == "extension":
         q = []
         ids, all_ids, centers, sizes_list = get_contacts(segmentation, root_id, conv_size=6)
@@ -83,8 +83,6 @@ def create_queue(data_shape, n_pts, sampling_type="lin",
         soma_table = get_soma(all_ids)
         polarity_table = is_dendrite(endpoint_nm, all_ids)
         for i in ids:
-            if i != root_id:
-                continue
             if i != root_id and soma_table.get_soma(i) > 0:
                 continue
             if i != root_id and not polarity_table.dendrite_filt(root_id, i):
@@ -99,7 +97,22 @@ def create_queue(data_shape, n_pts, sampling_type="lin",
                 for _ in range(n_gen):
                     q.append([*centers_list[j]])
                 ct += 1
-    return q, soma_table, polarity_table
+        return q, soma_table, polarity_table
+    if sampling_type == "extension_only":
+        q = []
+        centers_list, sizes_list = get_seg_slices(root_id, segmentation)
+        polarity_table = is_dendrite(endpoint_nm, root_id)
+        polarity = polarity_table.dendrite_df[polarity_table.dendrite_df.seg_id==root_id].iloc[0].polarity
+        data_size = data_shape[0] * data_shape[1]
+        ct=0
+        for j in range(len(centers_list)):
+            n_gen = int(sizes_list[j] / data_size * n_pts)
+            if sizes_list[j] > 0:
+                n_gen += 1
+            for _ in range(n_gen):
+                q.append([*centers_list[j]])
+            ct += 1
+        return q, polarity
 
 def spawn_from_neuron_extension(neurons, n_pts_per_neuron, ids=None):
     """
@@ -186,13 +199,38 @@ def get_contacts(seg, root_id,conv_size=3):
 
     return close_ids, all_ids, centers, sizes
 
-def position_merge(ep, root_id, merges, soma_table, polarity_table):
+def get_seg_slices(root_id, seg):
+    import  copy
+    seg_mask = copy.deepcopy(seg)
+
+    seg_mask[np.logical_not(seg_mask == root_id)] = 0
+    seg_mask[seg_mask > 0] = 1
+    sizes_list = []
+
+    points = np.argwhere(seg == root_id)
+    points_z = points[:,2]
+    centers_list = []
+    for z in range(np.min(points_z), np.max(points_z)+1):
+        if z < 2 or z > 198:
+            continue
+        points_slice = np.argwhere(seg[:,:,z] == root_id)
+        centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
+        sizes_list.append(len(points_slice))
+
+    return centers_list, sizes_list
+
+def position_merge(ep, root_id, merges, endpoint_nm):
     merge_df = pd.DataFrame()
 
     ms = set()
     for m in merges:
         ms.add(m[0])
         ms.add(m[1])
+
+    m_list = list(ms)
+    soma_table = get_soma(m_list)
+    polarity_table = is_dendrite(endpoint_nm, m_list)
+    
     for i, k in enumerate(merges):
         if k[0] == root_id:
             extension = k[1]
@@ -372,15 +410,17 @@ class is_dendrite():
         for ind, i in enumerate(new_ids):
             len_post = len(post_ids[post_ids["post_pt_root_id"] == i])
             len_pre = len(pre_ids[pre_ids["pre_pt_root_id"] == i])
-            if len_post == len_pre:
-                polarity="Unknown"
-            elif len_post < len_pre:
-                polarity="Axon"
-            else:
+            if len_post == len_pre and len_post == 0:
+                polarity="No synapses"
+                mixed_polarity=False
+            elif len_post > 1 and len_pre > 0:
                 polarity="Dendrite"
-            if len_post > 0 and len_pre > 0:
                 mixed_polarity=True
+            elif len_post > 1 and len_pre == 0:
+                polarity="Denrite"
+                mixed_polarity=False
             else:
+                polarity="Axon"
                 mixed_polarity=False
             dendrite_df = pd.concat([dendrite_df, pd.DataFrame({'seg_id':seg_dict[i], 'polarity':polarity, 'mixed_polarity':mixed_polarity}, index=[ind])])
         self.dendrite_df = dendrite_df
