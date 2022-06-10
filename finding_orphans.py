@@ -106,7 +106,49 @@ def bounding_box_coords(point: Iterable, boxdim: Iterable = [100, 100, 100]) -> 
     casted_bounds = cast_points_within_bounds(point, data_bounds, boxdim)
     
     return casted_bounds
-    
+
+
+def get_pot_extension(self, endpoint_coords):
+
+    if (len(endpoint_coords) != 3):
+        # FIX THIS - SHOULD BE DIFF TYPE OF ERROR
+        raise OrphanError(
+            "get_pot_extension needs all 3 coordinates of endpoint to extend!")
+
+    # Get the coordinates of the bounding box around the endpoint
+    endpoint_bounding_box_coords = self.bounding_box_coords(endpoint_coords)
+
+    # Get a preliminary list of all seg ids within bounding box
+    pot_ex = self.get_unique_seg_ids_em(endpoint_bounding_box_coords)
+
+    # Get seg id of current fragment
+    process_seg_id = data_loader.get_seg(
+        endpoint_coords[0], endpoint_coords[0], endpoint_coords[1], endpoint_coords[1], endpoint_coords[2], endpoint_coords[2])
+
+    # Remove current seg id from the list of potential extensions
+    pot_ex = pot_ex[str(pot_ex) != str(process_seg_id)]
+
+    # Get type of current process and all other processes
+    curr_process_type = {process_seg_id: []}
+    self.get_process_type(curr_process_type)
+
+    curr_process_type = curr_process_type[1][0]
+
+    self.get_process_type(pot_ex)
+
+    # Filter out all other processes whose type!= current process type
+    pot_ex = self.remove_diff_types(curr_process_type, pot_ex)
+
+    return pot_ex  # Return all potential extensions after removing confirmed other types
+
+
+def remove_diff_types(process_type, pot_ex):
+    for seg_id, attributes in pot_ex.items():
+        if (process_type not in attributes or "unconfirmed" not in attributes):
+            del pot_ex[seg_id]
+
+    return pot_ex    
+
 
 if __name__ == "__main__":
     x_min = 115167
