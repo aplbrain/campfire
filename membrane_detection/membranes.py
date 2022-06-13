@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
     data = np.squeeze(vol[100000:101000, 100000:101000, 20000:20100])
-    seg = segment_membranes(data)
+    seg = segment_membranes(data, pth='model_CREMI_2d.pth', device_s='gpu')
 
     plt.figure()
     plt.subplot(121)
@@ -104,4 +104,3 @@ if __name__ == "__main__":
     plt.subplot(122)
     plt.imshow(seg[:, :, 50])
     plt.show()
-
