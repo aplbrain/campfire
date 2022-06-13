@@ -21,7 +21,7 @@ class Orphans:
         self.z_min = z_min
         self.z_max = z_max
 
-    # Gets all the seg ids within a given subvolume and organizes by size of process
+    # Gets all the seg ids within a given subvolume and organizes by size of process. Returns list of tuples: (seg_id, size)
     def get_unique_seg_ids_em(self) -> list:
 
         # Get entire EM data - uncomment after testing
@@ -51,11 +51,12 @@ class Orphans:
         for seg_id in (pbar := tqdm(unique_seg_ids_sv)):
             pbar.set_description('Organizing seg_ids by size')
             # seg_ids_by_size[seg_id] = int(em[em == seg_id].sum()) # Uncomment after testing to organize seg ids by size considering whole data
-            seg_ids_by_size[seg_id] = int(
-                seg_ids_sv[seg_ids_sv == seg_id].sum())
+            seg_ids_by_size[seg_id] = [int(
+                seg_ids_sv[seg_ids_sv == seg_id].sum())]
 
         seg_ids_by_size = sorted(seg_ids_by_size.items(),
                                  key=lambda x: x[1], reverse=True)
+        # Returns a list of tuples with first element as seg id, second elmenet of tuple is a list containing size
         return seg_ids_by_size  # Sorted in descending order
 
     # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
@@ -70,9 +71,9 @@ class Orphans:
             pbar.set_description('Finding orphans')
             seg_id = seg_id_and_size[0]
             if (data_loader.get_num_soma(str(seg_id)) == 0):
-                orphans[seg_id] = [seg_id_and_size[1]]
+                orphans[seg_id] = [seg_id_and_size[1][0]]
 
-        return orphans  # list of seg_ids that are orphans in given subvolume
+        return orphans  # dict of seg_ids that are orphans in given subvolume
 
     # Input: processes is a dictionary with key = seg_id, value = list of attributes
     # Returns: updated processes so that value also includes the type of the process
@@ -108,16 +109,16 @@ class Orphans:
         process_seg_id = data_loader.get_seg(
             endpoint_coords[0], endpoint_coords[0], endpoint_coords[1], endpoint_coords[1], endpoint_coords[2], endpoint_coords[2])
 
-        # Remove current seg id from the list of potential extensions
+
+        # Get type of all processes
+        pot_ex = dict(pot_ex)
+        pot_ex = self.get_process_type(pot_ex)
+
+        # Get type of current process
+        curr_process_type = pot_ex[process_seg_id][1]
+
+        # Remove current seg id from the list of potential extensions - REWORK TO USE DELETE
         pot_ex = pot_ex[str(pot_ex) != str(process_seg_id)]
-
-        # Get type of current process and all other processes
-        curr_process_type = {process_seg_id: []}
-        self.get_process_type(curr_process_type)
-
-        curr_process_type = curr_process_type[1][0]
-
-        self.get_process_type(pot_ex)
 
         # Filter out all other processes whose type!= current process type
         pot_ex = remove_diff_types(curr_process_type, pot_ex)
