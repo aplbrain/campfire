@@ -5,7 +5,7 @@ class SubmoduleException(Exception):
     pass
 
 
-def cast_points_within_bounds(point: Iterable, bounds: Iterable, boxdim: Iterable = [100,100,100]) -> list:
+def   cast_points_within_bounds(point: Iterable, bounds: Iterable, boxdim: Iterable = [100,100,100]) -> list:
     """
     Casts a point within specified bounds.
 
