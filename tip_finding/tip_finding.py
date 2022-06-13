@@ -44,17 +44,17 @@ def tip_finder_decimation(root_id, nucleus_id=None, time=None, pt_position=None,
     points = skel.vertices[np.argwhere(degree==1)].astype(int)
     tl = [tuple([int(e[0][0])//4, int(e[0][1])//4, int(e[0][2])//40]) for e in points]
 
-    import meshparty
-    import boto3
-    # Upload the file
-    s3_client = boto3.client('s3')
-    try:
-        # Outputting skeleton to h5 skeleton file for Hannah
-        # H5 file is then sent to s3 bucket
-        meshparty.skeleton_io.write_skeleton_h5(skel,f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5")
-        response = s3_client.upload_file(f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_{pt_position}_skel.h5", 'neuvue-skeletons', f"{nucleus_id}_{root_id}_{time}_skel.h5")
-    except Exception as e:
-        print(e, "s3 upload failed")
-        save_skel = 'h5'
+    # import meshparty
+    # import boto3
+    # # Upload the file
+    # s3_client = boto3.client('s3')
+    # try:
+    #     # Outputting skeleton to h5 skeleton file for Hannah
+    #     # H5 file is then sent to s3 bucket
+    #     meshparty.skeleton_io.write_skeleton_h5(skel,f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_skel.h5")
+    #     response = s3_client.upload_file(f"/root/campfire/data/{nucleus_id}_{root_id}_{time}_{pt_position}_skel.h5", 'neuvue-skeletons', f"{nucleus_id}_{root_id}_{time}_skel.h5")
+    # except Exception as e:
+    #     print(e, "s3 upload failed")
+    #     save_skel = 'h5'
     
-    return tl
+    return tl, skel
