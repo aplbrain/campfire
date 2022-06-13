@@ -106,7 +106,7 @@ class Orphans:
         pot_ex = self.get_unique_seg_ids_em(endpoint_bounding_box_coords)
 
         # Get seg id of current fragment
-        process_seg_id = data_loader.get_seg(
+        curr_process_seg_id = data_loader.get_seg(
             endpoint_coords[0], endpoint_coords[0], endpoint_coords[1], endpoint_coords[1], endpoint_coords[2], endpoint_coords[2])
 
 
@@ -115,10 +115,12 @@ class Orphans:
         pot_ex = self.get_process_type(pot_ex)
 
         # Get type of current process
-        curr_process_type = pot_ex[process_seg_id][1]
+        curr_process_type = pot_ex[curr_process_seg_id][1]
 
         # Remove current seg id from the list of potential extensions - REWORK TO USE DELETE
-        pot_ex = pot_ex[str(pot_ex) != str(process_seg_id)]
+        # pot_ex = pot_ex[str(pot_ex) != str(curr_process_seg_id)]
+        del pot_ex[curr_process_seg_id]
+
 
         # Filter out all other processes whose type!= current process type
         pot_ex = remove_diff_types(curr_process_type, pot_ex)
