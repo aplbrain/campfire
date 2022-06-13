@@ -13,23 +13,30 @@ class OrphanError(Exception):
 
 
 class Orphans:
-    def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
-        self.x_min = x_min
-        self.x_max = x_max
-        self.y_min = y_min
-        self.y_max = y_max
-        self.z_min = z_min
-        self.z_max = z_max
+    # def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
+        # self.x_min = x_min
+        # self.x_max = x_max
+        # self.y_min = y_min
+        # self.y_max = y_max
+        # self.z_min = z_min
+        # self.z_max = z_max
 
     # Gets all the seg ids within a given subvolume and organizes by size of process. Returns list of tuples: (seg_id, size)
-    def get_unique_seg_ids_em(self) -> list:
-
+    def get_unique_seg_ids_em(self, coords) -> list:
+        if (len(coords) != 6): # CHANGE THE ERROR THROWN!
+            raise OrphanError("get_unqiue_seg_ids_em need 6 coordinates!!")
+        x_min = coords[0]
+        x_max = coords[1]
+        y_min = coords[2]
+        y_max = coords[3]
+        z_min = coords[4]
+        z_max = coords[5]
         # Get entire EM data - uncomment after testing
         # em = CloudVolume('s3://bossdb-open-data/iarpa_microns/minnie/minnie65/seg', use_https=True, mip=0, parallel=True, fill_missing=True, progress=True)
 
         # Get seg ids in the specified subvolume
-        seg_ids_sv = data_loader.get_seg(self.x_min, self.x_max, self.y_min,
-                                         self.y_max, self.z_min, self.z_max)
+        seg_ids_sv = data_loader.get_seg(x_min, x_max, y_min,
+                                         y_max, z_min, z_max)
 
         # Get rid of the 4th dimension since its magnitude is 1
         seg_ids_sv = np.squeeze(seg_ids_sv)
@@ -60,9 +67,8 @@ class Orphans:
         return seg_ids_by_size  # Sorted in descending order
 
     # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
-
-    def get_orphans(self) -> dict:
-        unique_seg_ids = self.get_unique_seg_ids_em()
+    def get_orphans(self, coords) -> dict:
+        unique_seg_ids = self.get_unique_seg_ids_em(coords)
 
         # Getting all the orphans
         orphans = {}
@@ -92,7 +98,7 @@ class Orphans:
         return processes
 
 
-    def get_pot_extension(self, endpoint_coords):
+    def get_pot_extensions(self, endpoint_coords):
 
         if (len(endpoint_coords) != 3):
             # FIX THIS - SHOULD BE DIFF TYPE OF ERROR
@@ -103,6 +109,7 @@ class Orphans:
         endpoint_bounding_box_coords = bounding_box_coords(endpoint_coords)
 
         # Get a preliminary list of all seg ids within bounding box
+        # pot_ex = self.get_unique_seg_ids_em(*endpoint_bounding_box_coords)
         pot_ex = self.get_unique_seg_ids_em(endpoint_bounding_box_coords)
 
         # Get seg id of current fragment
