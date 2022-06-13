@@ -104,10 +104,3 @@ if __name__ == "__main__":
     plt.subplot(122)
     plt.imshow(seg[:, :, 50])
     plt.show()
-
-    plt.figure()
-    plt.subplot(121)
-    plt.imshow(data[500, :100, :])
-    plt.subplot(122)
-    plt.imshow(seg[500, :100, :])
-    plt.show()

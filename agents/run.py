@@ -16,8 +16,8 @@ def run_agents(**kwargs):
     Returns:
         None: all relavent output is pickled to file.
     """
-    tic = time.time()
 
+    tic = time.time()
     # -------------------
     # Can iterate over kwargs.items(), (k) = v
     # Can also use namespace object with dict as input, in __init__ use __setatr__(k,v)
@@ -28,23 +28,19 @@ def run_agents(**kwargs):
     n_steps = kwargs["n_steps"]
     seg = kwargs["segmentation"]
     root_id = kwargs["root_id"]
+    endpoint_nm = kwargs["endpoint_nm"]
     # -------------------
     # Preparing Data, Starting Locs and Swarm
 
     data = load_membrane_vectors(precompute_fn)
-    print("Making Queue")
-    agent_queue = create_queue(
-        data.shape, 25, sampling_type="extension", root_id=root_id, segmentation=seg)
-
-    print(f"Data Prep Time: {time.time() - tic}. Spawning {len(agent_queue)} agents")
-
-    tic = time.time()
-
+    agent_queue, polarity = create_queue(
+        data.shape, 100, sampling_type="extension_only", root_id=root_id, segmentation=seg, endpoint_nm=endpoint_nm)
+    if polarity == "Axon":
+        return [], [root_id], []
     # Uncomment this line to add agent spawning linearly throughout the volume
     # agent_queue += create_queue(data.shape, n_pts_per_dim, sampling_type="lin")
 
     num_agents = len(agent_queue)
-    print(f"I Made {num_agents} agents")
     # Spawn agents
     count = 1
     swarm = Swarm(
@@ -58,10 +54,8 @@ def run_agents(**kwargs):
         parallel=False,
     )
     count = swarm.get_count()
+    print(count, "agents spawned")
     print("\nAgent Spawning Prep Time", time.time() - tic)
-    print("Number of Agents = ", count - 1)
-    print("Agent-Steps to be taken:", (count - 1) * n_steps, end=" ")
-    print("Projected Time:", (count - 1) * n_steps * 0.000080796 / 60, " minutes")
     # Run agents
     tic = time.time()
     for _ in range(n_steps):
@@ -69,12 +63,7 @@ def run_agents(**kwargs):
 
     steps_time = time.time() - tic
 
-    print("Steps Time", steps_time / 60, "mins")
-    print(
-        "Difference between projected and real:",
-        (steps_time - (count - 1) * n_steps * 0.000080796) / 60,
-        " minutes",
-    )
+    print("Steps Time", steps_time)
     # Save out data to file
     pos_histories = [a.get_position_history() for a in swarm.agents]
     seg_ids = [a.seg_id for a in swarm.agents]

@@ -100,14 +100,13 @@ class Agent:
             vec = sensor.get_vector(swarm_ptr, self)
             # print(sensor, vec.shape)
             acceleration += weight * vec
-
+            # print(sensor, weight, vec)
         # Set z velocity lower as function of anisotropy
         self.velocity += [acceleration[0], acceleration[1], acceleration[2] / (swarm_ptr.isotropy)]
         if np.linalg.norm(self.velocity) >= self.max_velocity:
             self.velocity = (
                 self.velocity / np.linalg.norm(self.velocity) * self.max_velocity
             )
-
         self.position += self.velocity
         self._position_history.append(np.copy(self.position))
         return True
