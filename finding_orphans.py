@@ -39,7 +39,7 @@ class Orphans:
 
         # Removing the first element (artifacts) of unique_seg_ids_sv
         """
-        Drop all zeros in array instead of only first, handles edge cases
+        Drop all zeros in array instead of only first, handles edge cases. Also drop all null seg ids - handles edge cases of missing slices
         unique_seg_ids_sv = np.delete(unique_seg_ids_sv, 0)
         """
 
