@@ -10,3 +10,8 @@ TESTING*.*
 .cloudvolume/
 
 arch*.*
+
+
+*.DS_Store
+.idea/
+.ipynb_checkpoints/
