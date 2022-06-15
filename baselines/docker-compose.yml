@@ -1,0 +1,9 @@
+version: "3"
+services:
+  campfire_ffn:
+    image: campfire_ffn
+    volumes:
+      - ./:/home
+    command: /bin/bash
+    stdin_open: yes
+    tty: yes
