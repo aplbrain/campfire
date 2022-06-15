@@ -14,38 +14,30 @@ class OrphanError(Exception):
 
 
 class Orphans:
-    def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
-        self.x_min = x_min
-        self.x_max = x_max
-        self.y_min = y_min
-        self.y_max = y_max
-        self.z_min = z_min
-        self.z_max = z_max
+    def __init__(self, bounds_list: list):
+        self.bounds_list = bounds_list
+    
+    # def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
+    #     self.x_min = x_min
+    #     self.x_max = x_max
+    #     self.y_min = y_min
+    #     self.y_max = y_max
+    #     self.z_min = z_min
+    #     self.z_max = z_max
 
     # Gets all the seg ids within a given subvolume and organizes by size of process. Returns list of tuples: (seg_id, size)
     def get_unique_seg_ids_em(self, coords=None) -> list:
         if (coords != None and len(coords) != 6):  # CHANGE THE ERROR THROWN!
-            raise OrphanError("get_unqiue_seg_ids_em need 6 coordinates!!")
-        if (coords != None):
-            x_min = coords[0]
-            x_max = coords[1]
-            y_min = coords[2]
-            y_max = coords[3]
-            z_min = coords[4]
-            z_max = coords[5]
-        else:
-            x_min = self.x_min
-            x_max = self.x_max
-            y_min = self.y_min
-            y_max = self.y_max
-            z_min = self.z_min
-            z_max = self.z_max
+            raise OrphanError("get_unique_seg_ids_em needs 6 coordinates!!")
+        
+        x_min, x_max, y_min, y_max, z_min, z_max = coords if coords else self.bounds_list
+
+        seg_ids_sv = data_loader.get_seg(x_min, x_max, y_min,
+                                        y_max, z_min, z_max)
         # Get entire EM data - uncomment after testing
         # em = CloudVolume('s3://bossdb-open-data/iarpa_microns/minnie/minnie65/seg', use_https=True, mip=0, parallel=True, fill_missing=True, progress=True)
 
         # Get seg ids in the specified subvolume
-        seg_ids_sv = data_loader.get_seg(x_min, x_max, y_min,
-                                         y_max, z_min, z_max)
 
         # Get rid of the 4th dimension since its magnitude is 1
         seg_ids_sv = np.squeeze(seg_ids_sv)
@@ -181,8 +173,7 @@ if __name__ == "__main__":
 
     bounds = bounding_box_coords([115267, 91839, 21305])
     print(bounds)
-    orphanclass = Orphans(bounds[0], bounds[1],
-                          bounds[2], bounds[3], bounds[4], bounds[5])
+    orphanclass = Orphans(bounds)
     orphans = orphanclass.get_orphans()
     print("Number of orphans:", len(orphans))
     orphanclass.get_process_type(orphans)
@@ -191,4 +182,3 @@ if __name__ == "__main__":
     total_size = orphans.values()
     total_size = list(total_size)
     total_size = np.array(total_size)
-    print(sum(total_size[:,0]))
