@@ -6,6 +6,7 @@ from cloudvolume import CloudVolume, VolumeCutout
 import numpy as np
 from tqdm import tqdm
 from orphan_extension.utils.cast_to_bounds import cast_points_within_bounds
+from tip_finding import tip_finding
 
 
 class OrphanError(Exception):
@@ -13,24 +14,32 @@ class OrphanError(Exception):
 
 
 class Orphans:
-    # def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
-        # self.x_min = x_min
-        # self.x_max = x_max
-        # self.y_min = y_min
-        # self.y_max = y_max
-        # self.z_min = z_min
-        # self.z_max = z_max
+    def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
+        self.x_min = x_min
+        self.x_max = x_max
+        self.y_min = y_min
+        self.y_max = y_max
+        self.z_min = z_min
+        self.z_max = z_max
 
     # Gets all the seg ids within a given subvolume and organizes by size of process. Returns list of tuples: (seg_id, size)
-    def get_unique_seg_ids_em(self, coords) -> list:
-        if (len(coords) != 6): # CHANGE THE ERROR THROWN!
+    def get_unique_seg_ids_em(self, coords=None) -> list:
+        if (coords != None and len(coords) != 6):  # CHANGE THE ERROR THROWN!
             raise OrphanError("get_unqiue_seg_ids_em need 6 coordinates!!")
-        x_min = coords[0]
-        x_max = coords[1]
-        y_min = coords[2]
-        y_max = coords[3]
-        z_min = coords[4]
-        z_max = coords[5]
+        if (coords != None):
+            x_min = coords[0]
+            x_max = coords[1]
+            y_min = coords[2]
+            y_max = coords[3]
+            z_min = coords[4]
+            z_max = coords[5]
+        else:
+            x_min = self.x_min
+            x_max = self.x_max
+            y_min = self.y_min
+            y_max = self.y_max
+            z_min = self.z_min
+            z_max = self.z_max
         # Get entire EM data - uncomment after testing
         # em = CloudVolume('s3://bossdb-open-data/iarpa_microns/minnie/minnie65/seg', use_https=True, mip=0, parallel=True, fill_missing=True, progress=True)
 
@@ -59,7 +68,7 @@ class Orphans:
             pbar.set_description('Organizing seg_ids by size')
             # seg_ids_by_size[seg_id] = int(em[em == seg_id].sum()) # Uncomment after testing to organize seg ids by size considering whole data
             seg_ids_by_size[seg_id] = [int(
-                seg_ids_sv[seg_ids_sv == seg_id].sum())]
+                np.sum(seg_ids_sv == seg_id))]
 
         seg_ids_by_size = sorted(seg_ids_by_size.items(),
                                  key=lambda x: x[1], reverse=True)
@@ -67,7 +76,8 @@ class Orphans:
         return seg_ids_by_size  # Sorted in descending order
 
     # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
-    def get_orphans(self, coords) -> dict:
+    def get_orphans(self, coords=None) -> dict:
+
         unique_seg_ids = self.get_unique_seg_ids_em(coords)
 
         # Getting all the orphans
@@ -97,7 +107,6 @@ class Orphans:
 
         return processes
 
-
     def get_pot_extensions(self, endpoint_coords):
 
         if (len(endpoint_coords) != 3):
@@ -116,7 +125,6 @@ class Orphans:
         curr_process_seg_id = data_loader.get_seg(
             endpoint_coords[0], endpoint_coords[0], endpoint_coords[1], endpoint_coords[1], endpoint_coords[2], endpoint_coords[2])
 
-
         # Get type of all processes
         pot_ex = dict(pot_ex)
         pot_ex = self.get_process_type(pot_ex)
@@ -128,7 +136,6 @@ class Orphans:
         # pot_ex = pot_ex[str(pot_ex) != str(curr_process_seg_id)]
         del pot_ex[curr_process_seg_id]
 
-
         # Filter out all other processes whose type!= current process type
         pot_ex = remove_diff_types(curr_process_type, pot_ex)
 
@@ -137,17 +144,19 @@ class Orphans:
 
 def bounding_box_coords(point: Iterable, boxdim: Iterable = [100, 100, 100]) -> list:
     # Data bounds not validated
-    data_bounds = [26000,220608,30304,161376,14825,27881]
-    
+    data_bounds = [26000, 220608, 30304, 161376, 14825, 27881]
+
     # Confirm that entry is 3dim
     if len(point) != 3:
-        raise OrphanError("Point passed to func bounding_box_coords() must be an iterable of length 3.")
+        raise OrphanError(
+            "Point passed to func bounding_box_coords() must be an iterable of length 3.")
     if len(boxdim) != 3:
-        raise OrphanError("Box dimensions passed to func bounding_box_coords() must be 3 dimensional")
-    
+        raise OrphanError(
+            "Box dimensions passed to func bounding_box_coords() must be 3 dimensional")
+
     # Check bound validity and cast to new bounds
     casted_bounds = cast_points_within_bounds(point, data_bounds, boxdim)
-    
+
     return casted_bounds
 
 
@@ -156,21 +165,30 @@ def remove_diff_types(process_type, pot_ex):
         if (process_type not in attributes or "unconfirmed" not in attributes):
             del pot_ex[seg_id]
 
-    return pot_ex    
+    return pot_ex
 
 
 if __name__ == "__main__":
-    x_min = 115167
-    x_max = 116414
-    y_min = 91739
-    y_max = 93796
-    z_min = 21305
-    z_max = 21315
+    # x_min = 115167
+    # x_max = 116414
+    # y_min = 91739
+    # y_max = 93796
+    # z_min = 21305
+    # z_max = 21315
 
-    bounds = bounding_box_coords([115267, 91839, 21405])
+    # coords = [x_min, x_max, y_min, y_max, z_min, z_max]
+    # orphans = get_orphans(coords)
+
+    bounds = bounding_box_coords([115267, 91839, 21305])
     print(bounds)
-    orphanclass = Orphans(*bounds)
+    orphanclass = Orphans(bounds[0], bounds[1],
+                          bounds[2], bounds[3], bounds[4], bounds[5])
     orphans = orphanclass.get_orphans()
     print("Number of orphans:", len(orphans))
     orphanclass.get_process_type(orphans)
     print("Orphans", orphans)
+
+    total_size = orphans.values()
+    total_size = list(total_size)
+    total_size = np.array(total_size)
+    print(sum(total_size[:,0]))
