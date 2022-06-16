@@ -27,14 +27,8 @@ def get_num_soma_mult(root_ids: list):
         filter_in_dict={'pt_root_id':root_ids},
         select_columns=['id', 'pt_root_id']
     )
-    num_soma_sr = soma['pt_root_id'].value_counts()
-    for i in root_ids:
-        if i not in num_soma_sr.index:
-            num_soma_sr[int(i)] = 0
-    
-    num_soma_dict = num_soma_sr.to_dict()
 
-    return num_soma_dict
+    return soma
 
 
 def axon_dendrite_conditions(pre_syn, post_syn):
@@ -45,14 +39,21 @@ def axon_dendrite_conditions(pre_syn, post_syn):
     else:
         return 'unconfirmed'
 
-def multi_soma_count(root_ids: list):
+def multi_soma_count(root_ids: list) -> dict:
     root_ids_str = list(map(str, root_ids))
     soma_exists_df = get_num_soma_mult(root_ids_str)
+
+    num_soma_sr = soma_exists_df['pt_root_id'].value_counts()
+    for i in root_ids:
+        if i not in num_soma_sr.index:
+            num_soma_sr[int(i)] = 0
     
-    return soma_exists_df
+    num_soma_dict = num_soma_sr.to_dict()
+
+    return num_soma_dict
     
 
-def multi_proc_type(root_ids: list):
+def multi_proc_type(root_ids: list) -> dict:
     root_ids_str = list(map(str, root_ids))
     len_pre, len_post = get_syn_cts_mult(root_ids_str)
 

@@ -26,8 +26,11 @@ class Orphans:
     #     self.z_min = z_min
     #     self.z_max = z_max
 
-    # Gets all the seg ids within a given subvolume and organizes by size of process. Returns list of tuples: (seg_id, size)
+    
     def get_unique_seg_ids_em(self, coords=None) -> list:
+        """
+        Gets all the seg ids within a given subvolume and organizes by size of process. Returns list of tuples: (seg_id, size)
+        """
         if (coords != None and len(coords) != 6):  # CHANGE THE ERROR THROWN!
             raise OrphanError("get_unique_seg_ids_em needs 6 coordinates!!")
         
@@ -68,9 +71,10 @@ class Orphans:
         # Returns a list of tuples with first element as seg id, second elmenet of tuple is a list containing size
         return seg_ids_by_size  # Sorted in descending order
 
-    # Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
     def get_orphans(self, coords=None) -> dict:
-
+        """
+        Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
+        """
         unique_seg_ids = self.get_unique_seg_ids_em(coords)
         unique_seg_ids_l = [i[0] for i in unique_seg_ids]
 
@@ -87,9 +91,11 @@ class Orphans:
 
         return orphan_dict  # dict of seg_ids that are orphans in given subvolume
 
-    # Input: processes is a dictionary with key = seg_id, value = list of attributes
-    # Returns: updated processes so that value also includes the type of the process
     def get_process_type(self, processes: dict) -> dict:
+        """
+        Input: processes is a dictionary with key = seg_id, value = list of attributes
+        Returns: updated processes so that value also includes the type of the process
+        """
         proc_dict = multi_proc_type(list(processes.keys()))
         for seg_id, attributes in (pbar := tqdm(processes.items())):
             pbar.set_description('Adding process type')
@@ -169,13 +175,11 @@ if __name__ == "__main__":
     # coords = [x_min, x_max, y_min, y_max, z_min, z_max]
     # orphans = get_orphans(coords)
 
-    bounds = bounding_box_coords([115267, 91839, 21305])
-    print(bounds)
+    bounds = bounding_box_coords([115267, 91839, 21305], boxrad= [100,100,10])
     orphanclass = Orphans(bounds)
     orphans = orphanclass.get_orphans()
     print("Number of orphans:", len(orphans))
     proc_types = orphanclass.get_process_type(orphans)
-    print("Orphans", orphans)
     print(proc_types)
 
     # total_size = orphans.values()
