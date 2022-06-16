@@ -6,6 +6,7 @@ from cloudvolume import CloudVolume, VolumeCutout
 import numpy as np
 from tqdm import tqdm
 from orphan_extension.utils.cast_to_bounds import cast_points_within_bounds
+from orphan_extension.utils.multi_loader import multi_proc_type, get_num_soma_mult
 from tip_finding import tip_finding
 
 
@@ -71,31 +72,28 @@ class Orphans:
     def get_orphans(self, coords=None) -> dict:
 
         unique_seg_ids = self.get_unique_seg_ids_em(coords)
+        unique_seg_ids_l = [i[0] for i in unique_seg_ids]
 
         # Getting all the orphans
-        orphans = {}
+        orphans = get_num_soma_mult(unique_seg_ids_l)
+        orphans = list({k:v for k, v in orphans.items() if v==0}.keys())
+
+        orphan_dict = {}
 
         for seg_id_and_size in (pbar := tqdm(unique_seg_ids)):
-            pbar.set_description('Finding orphans')
-            seg_id = seg_id_and_size[0]
-            if (data_loader.get_num_soma(str(seg_id)) == 0):
-                orphans[seg_id] = [seg_id_and_size[1][0]]
+            pbar.set_description('Labeling orphans')
+            if seg_id_and_size[0] in orphans:
+                orphan_dict[seg_id_and_size[0]] = seg_id_and_size[1]
 
-        return orphans  # dict of seg_ids that are orphans in given subvolume
+        return orphan_dict  # dict of seg_ids that are orphans in given subvolume
 
     # Input: processes is a dictionary with key = seg_id, value = list of attributes
     # Returns: updated processes so that value also includes the type of the process
     def get_process_type(self, processes: dict) -> dict:
+        proc_dict = multi_proc_type(list(processes.keys()))
         for seg_id, attributes in (pbar := tqdm(processes.items())):
-            pbar.set_description('Finding process type')
-            num_pre_synapses, num_post_synapses = data_loader.get_syn_counts(
-                str(seg_id))
-            if (num_pre_synapses > num_post_synapses):
-                attributes.append('axon')
-            elif (num_post_synapses > num_pre_synapses):
-                attributes.append('dendrite')
-            else:
-                attributes.append('unconfirmed')
+            pbar.set_description('Adding process type')
+            attributes.append(proc_dict[seg_id])
 
         return processes
 
@@ -134,7 +132,7 @@ class Orphans:
         return pot_ex  # Return all potential extensions after removing confirmed other types
 
 
-def bounding_box_coords(point: Iterable, boxdim: Iterable = [100, 100, 100]) -> list:
+def bounding_box_coords(point: Iterable, boxrad: Iterable = [100, 100, 10]) -> list:
     # Data bounds not validated
     data_bounds = [26000, 220608, 30304, 161376, 14825, 27881]
 
@@ -142,12 +140,12 @@ def bounding_box_coords(point: Iterable, boxdim: Iterable = [100, 100, 100]) -> 
     if len(point) != 3:
         raise OrphanError(
             "Point passed to func bounding_box_coords() must be an iterable of length 3.")
-    if len(boxdim) != 3:
+    if len(boxrad) != 3:
         raise OrphanError(
             "Box dimensions passed to func bounding_box_coords() must be 3 dimensional")
 
     # Check bound validity and cast to new bounds
-    casted_bounds = cast_points_within_bounds(point, data_bounds, boxdim)
+    casted_bounds = cast_points_within_bounds(point, data_bounds, boxrad)
 
     return casted_bounds
 
@@ -176,9 +174,10 @@ if __name__ == "__main__":
     orphanclass = Orphans(bounds)
     orphans = orphanclass.get_orphans()
     print("Number of orphans:", len(orphans))
-    orphanclass.get_process_type(orphans)
+    proc_types = orphanclass.get_process_type(orphans)
     print("Orphans", orphans)
+    print(proc_types)
 
-    total_size = orphans.values()
-    total_size = list(total_size)
-    total_size = np.array(total_size)
+    # total_size = orphans.values()
+    # total_size = list(total_size)
+    # total_size = np.array(total_size)

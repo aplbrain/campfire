@@ -5,7 +5,7 @@ class SubmoduleException(Exception):
     pass
 
 
-def   cast_points_within_bounds(point: Iterable, bounds: Iterable, boxdim: Iterable = [100,100,100]) -> list:
+def cast_points_within_bounds(point: Iterable, bounds: Iterable, boxrad: Iterable = [100,100,10]) -> list:
     """
     Casts a point within specified bounds.
 
@@ -26,30 +26,26 @@ def   cast_points_within_bounds(point: Iterable, bounds: Iterable, boxdim: Itera
 
     casted_region = []
 
-    th_bounds = [db_high[i] + boxdim[i] for i in range(len(boxdim))]
-    tl_bounds = [db_low[i] - boxdim[i] for i in range(len(boxdim))]
+    th_bounds = [db_high[i] + boxrad[i] for i in range(len(boxrad))]
+    tl_bounds = [db_low[i] - boxrad[i] for i in range(len(boxrad))]
     
     for i in range(len(point)):
         if point[i] >= th_bounds[i] or point[i] <= tl_bounds[i]:
             raise SubmoduleException('You are attempting to cast outside absolute boundaries.')
 
         if point[i] >= db_high[i]:
-            p_low = point[i]-boxdim[i]
+            p_low = point[i]-boxrad[i]
             p_high = db_high[i]
         elif point[i] <= db_low[i]:
             p_low = db_low[i]
-            p_high = point[i]+boxdim[i]
+            p_high = point[i]+boxrad[i]
         else:
-            p_low = point[i]-boxdim[i]
-            p_high = point[i]+boxdim[i]
+            p_low = point[i]-boxrad[i]
+            p_high = point[i]+boxrad[i]
 
         casted_region.extend([p_low, p_high])
     
     return casted_region
-
-
-def cast_bounds_to_bounds(bounds: Iterable, edge: Iterable):
-    pass
 
 
 if __name__ == "__main__":
