@@ -9,7 +9,13 @@ from tqdm import tqdm
 import warnings
 import h5py
 FILENAME_ENCODING="{point}_{radius}.{fmt}"
-
+def encode_filename(**kwargs):
+    for k,v in kwargs.items():
+        if type(v) != str:
+            v = "_".join([str(int(i)) for i in v])
+            kwargs[k] = v
+    ret = FILENAME_ENCODING.format(**kwargs)
+    return ret 
 def load_point(point, vol, loc, radius):
     """Loads a region around a point
 
@@ -22,13 +28,13 @@ def load_point(point, vol, loc, radius):
     Returns:
         np.array: volume around the point
     """
-    npy_fn = os.path.join(loc, FILENAME_ENCODING.format(point=point, radius=radius, fmt='npy'))
-    h5_fn = os.path.join(loc, FILENAME_ENCODING.format(point=point, radius=radius, fmt='h5'))
+    npy_fn = os.path.join(loc, encode_filename(point=point, radius=radius, fmt='npy'))
+    h5_fn = os.path.join(loc, encode_filename(point=point, radius=radius, fmt='h5'))
     if os.path.exists(npy_fn):
         return np.load(npy_fn, allow_pickle=True)
     elif os.path.exists(h5_fn):
         with h5py.File(h5_fn,'r') as f:
-            ret = f['raw']
+            ret = np.array(f['raw'])
         return ret
     else:
 
@@ -58,19 +64,21 @@ def download_data(df, em_dir, seg_dir, radius=(256,256,32), resolution_scale=(2,
         if dat is None:
             return
         if output_fmt == 'h5':
-            with h5py.File(loc, 'w') as f:
-                try:
+            try:
+                with h5py.File(loc, 'w') as f:
                     f.create_dataset('raw', data=dat, compression='gzip')
-                except TypeError as e:
-                    warnings.warn(f'Unable to write {loc} for {e}')
+            except Exception as e:
+                warnings.warn(f'Unable to write {loc} for {e}')
+                print(dat)
+                raise
         elif output_fmt == 'npy':
             np.save(loc, dat, allow_pickle=False)
     for i,row in tqdm(df.iterrows(),desc='Points', total=len(df)):
         
         
         point = np.divide(row['EP'], resolution_scale)
-        em_loc = os.path.join(em_dir, FILENAME_ENCODING.format(point=point, radius=radius, fmt=output_fmt))
-        seg_loc = os.path.join(seg_dir, FILENAME_ENCODING.format(point=point, radius=radius, fmt=output_fmt))
+        em_loc = os.path.join(em_dir, encode_filename(point=point, radius=radius, fmt=output_fmt))
+        seg_loc = os.path.join(seg_dir, encode_filename(point=point, radius=radius, fmt=output_fmt))
         
         
         em = load_point(point, em_vol, em_dir,radius=radius)
