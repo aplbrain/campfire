@@ -6,7 +6,7 @@ from cloudvolume import CloudVolume, VolumeCutout
 import numpy as np
 from tqdm import tqdm
 from orphan_extension.utils.cast_to_bounds import cast_points_within_bounds
-from orphan_extension.utils.multi_loader import multi_proc_type, get_num_soma_mult
+from orphan_extension.utils.multi_loader import multi_proc_type, multi_soma_count
 from tip_finding import tip_finding
 
 
@@ -79,7 +79,7 @@ class Orphans:
         unique_seg_ids_l = [i[0] for i in unique_seg_ids]
 
         # Getting all the orphans
-        orphans = get_num_soma_mult(unique_seg_ids_l)
+        orphans = multi_soma_count(unique_seg_ids_l)
         orphans = list({k:v for k, v in orphans.items() if v==0}.keys())
 
         orphan_dict = {}
