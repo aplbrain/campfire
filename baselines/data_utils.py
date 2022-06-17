@@ -70,6 +70,7 @@ def download_data(df, em_dir, seg_dir, radius=(256,256,32), resolution_scale=(2,
             except Exception as e:
                 warnings.warn(f'Unable to write {loc} for {e}')
                 print(dat)
+                os.remove(loc)
                 raise
         elif output_fmt == 'npy':
             np.save(loc, dat, allow_pickle=False)
@@ -100,4 +101,5 @@ if __name__=="__main__":
     
     args = parser.parse_args()
     df = pd.read_pickle(args.evaluation_file,)
-    download_data(df, os.path.join(args.base_dir, args.em_dir), os.path.join(args.base_dir, args.seg_dir), output_fmt=args.output_fmt)
+    radius = [int(i) for i in args.download_radius.split(',')] or [256,256,32]
+    download_data(df, os.path.join(args.base_dir, args.em_dir), os.path.join(args.base_dir, args.seg_dir), output_fmt=args.output_fmt, radius=radius)
