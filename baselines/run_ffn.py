@@ -30,26 +30,26 @@ inference_options {{
   segment_threshold: 0.6
   min_segment_size: 1000
 }}'''
-def process_point(row, em_dir, radius, output_dir,resolution_scale=(2,2,1)):
+def process_point(row, em_dir, vol_size, output_dir,resolution_scale=(2,2,1)):
   os.makedirs(output_dir, exist_ok=True)
   point = np.divide(row['EP'], resolution_scale)
-  radius = np.array(radius)
-  em_loc = os.path.join(em_dir, encode_filename(point=point, radius=radius, fmt='h5'))
+  vol_size = np.array(vol_size)
+  em_loc = os.path.join(em_dir, encode_filename(point=point, vol_size=vol_size, fmt='h5'))
   with tempfile.TemporaryDirectory() as temp_output_dir:
     config = REQUEST_TEMPLATE.format(vol_path=em_loc,output_dir=temp_output_dir, ffn_basepath=ffn_basepath)
     req = inference_pb2.InferenceRequest()
     _ = text_format.Parse(config, req)
     runner = inference.Runner()
     runner.start(req)
-    bbox = np.array([(point - radius)[::-1], (point+radius)[::-1]])
+    bbox = np.array([(point - vol_size)[::-1], (point+vol_size)[::-1]])
     
     # This should make data?
     
-    runner.run((0,0,0), (radius*2)[::-1])
+    runner.run((0,0,0), (vol_size*2)[::-1])
     for dir, subdir, fns in os.walk(temp_output_dir):
       for fn in fns:
         _, ext = os.path.splitext(fn)
-        shutil.copy(os.path.join(dir,fn), os.path.join(output_dir,encode_filename(point=point, radius=radius, fmt=ext[1:])))
+        shutil.copy(os.path.join(dir,fn), os.path.join(output_dir,encode_filename(point=point, vol_size=vol_size, fmt=ext[1:])))
 def main(evaluation_file, row=None,**kwargs):
   df = evaluation_file
   if row is None:
@@ -61,13 +61,13 @@ def main(evaluation_file, row=None,**kwargs):
     process_point(row,**kwargs)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('evaluation_file', default='expanded_gt.pkl')
-    parser.add_argument('--em-dir',default='em')
-    parser.add_argument('--output-dir', default='seg_out')
-    parser.add_argument('--row',type=int)
-    parser.add_argument('--radius', default="256,256,32")
+    parser.add_argument('evaluation_file', default='expanded_gt.pkl',help="The evalation file to grab points from. Must contain the column 'EP' that contains (x,y,z) positions of each point")
+    parser.add_argument('--em-dir',default='em', help="The directory where EM volumes have been stored")
+    parser.add_argument('--output-dir', default='seg_out', help="The directory where segmented volumes should go")
+    parser.add_argument('--row',type=int, help="Process a particular row. If left out, will process the whole volume in a single thread.")
+    parser.add_argument('--vol-size', default="256,256,32", help='Size of volume around point. Comma seperated size in x,y,z or a single number for uniformity. Should match that of downloaded data.')
     args = parser.parse_args()
     kwargs = vars(args)
     kwargs['evaluation_file'] = pd.read_pickle(args.evaluation_file)
-    kwargs['radius'] = np.array(args.radius.split(","), dtype=int)
+    kwargs['vol_size'] = np.array(args.vol_size.split(","), dtype=int)
     main(**kwargs)

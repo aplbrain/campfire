@@ -1,1 +1,5 @@
 venv/
+baselines/em
+baselines/seg
+baselines/seg_out
+*.log
