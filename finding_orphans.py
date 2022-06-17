@@ -71,6 +71,7 @@ class Orphans:
         # Returns a list of tuples with first element as seg id, second elmenet of tuple is a list containing size
         return seg_ids_by_size  # Sorted in descending order
 
+
     def get_orphans(self, coords=None) -> dict:
         """
         Get the list of orphans within a given subvolume organized by largest orphan in subvolume first
@@ -91,6 +92,7 @@ class Orphans:
 
         return orphan_dict  # dict of seg_ids that are orphans in given subvolume
 
+
     def get_process_type(self, processes: dict) -> dict:
         """
         Input: processes is a dictionary with key = seg_id, value = list of attributes
@@ -102,6 +104,7 @@ class Orphans:
             attributes.append(proc_dict[seg_id])
 
         return processes
+
 
     def get_pot_extensions(self, endpoint_coords):
 

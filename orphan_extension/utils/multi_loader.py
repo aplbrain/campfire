@@ -23,7 +23,6 @@ def get_num_soma_mult(root_ids: list):
     cave_client = CAVEclient('minnie65_phase3_v1')
     soma = cave_client.materialize.query_table(
         "nucleus_neuron_svm",
-        materialization_version=117,
         filter_in_dict={'pt_root_id':root_ids},
         select_columns=['id', 'pt_root_id', 'classification_system', 'cell_type']
     )
@@ -44,11 +43,11 @@ def multi_soma_count(root_ids: list) -> dict:
     root_ids_str = list(map(str, root_ids))
     soma_exists_df = get_num_soma_mult(root_ids_str)
     # Drop non-neuronal types
-    soma_exists_df = soma_exists_df[(soma_exists_df.classification_system != 'is_neuron') & (soma_exists_df.cell_type != 'neuron')]
+    soma_exists_df = soma_exists_df[(soma_exists_df.classification_system == 'is_neuron') & (soma_exists_df.cell_type == 'neuron')]
 
     num_soma_sr = soma_exists_df['pt_root_id'].value_counts()
     for i in root_ids:
-        if i not in num_soma_sr.index:
+        if int(i) not in num_soma_sr.index:
             num_soma_sr[int(i)] = 0
     
     num_soma_dict = num_soma_sr.to_dict()
@@ -79,10 +78,18 @@ def multi_proc_type(root_ids: list) -> dict:
     return all_cts_dict
 
 
+def get_tables(datastack: str):
+    client = CAVEclient(datastack)
+    tables = client.annotation.get_tables()
+    
+    return tables
+
+
 if __name__ == "__main__":
-    some_list = [864691136109063864, 864691135699441698, 864691135521264882, 864691135368930546, 864691135918483376, 864691135804594461, 864691136914365806, 864691135395943378, 864691135478343235, 864691135648168388, 864691136000419720, 864691135449037042, 864691136181973462, 864691135582201586, 864691133035107425, 864691136913731182, 864691135407650258, 864691135968211902, 864691132647778343, 864691135401901778, 864691135104027483, 864691133716301031, 864691132647775271, 864691132647776807, 864691135648134852, 864691135407637970, 864691133035106657, 864691135648947396, 864691133456842377, 864691132647776295, 864691133716301287, 864691133035107169, 864691132647777575, 864691135804092189, 864691135793272349, 864691133456842633, 864691132647777063]
-    # some_list = list(map(str, some_list))
-    # act = multi_soma_count(some_list)
+    some_list = [864691135631953092, 864691135582201586, 864691135793688093, 864691134890716624, 864691136361681122]
+    nonneuron_list = [864691135822954356, 864691135454281322, 864691135822954356]
+    some_list = list(map(str, some_list))
+    act = multi_soma_count(some_list)
     actt = get_num_soma_mult(some_list)
     print(actt)
-    # print(act)
+    print(act)
