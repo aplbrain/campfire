@@ -14,7 +14,7 @@ client = CAVEclient('minnie65_phase3_v1')
 
 class Extension():
     def __init__(self, root_id, resolution, radius, unet_bound_mult, 
-                 device, save, nucleus_id, time_point, ):
+                 device, save, nucleus_id, time_point, endp):
         if type(root_id) == 'list':
             self.root_id = [int(r) for r in root_id]
         else:
@@ -252,9 +252,11 @@ def em_analysis(em, cnn_weights, unet_bound_mult, radius, device, bound_EM):
 
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
-                bound_EM, mem_seg, device, duration, error_dict, extension_id):
+                bound_EM, mem_seg, device, duration, error_dict):
+    if type(root_id) == list:
+        root_id = root_id[0]
     if save == "pd":
-        merges.to_csv(f"./data/merges_{root_id[0]}_{endpoint}.csv")
+        merges.to_csv(f"./data/merges_{root_id}_{endpoint}.csv")
     if save == "nvq":
         import neuvueclient as Client
         print("DURATION", duration, root_id, endpoint, "\n")
@@ -264,7 +266,6 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
                     'bbox':[str(x) for x in bound], 
                     'bbox_em':[str(x) for x in bound_EM],
                     'error_dict':error_dict,
-                    'extension_id':extension_id
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         end = [str(x) for x in endpoint]

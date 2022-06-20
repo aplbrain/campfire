@@ -1,3 +1,4 @@
+from logging import root
 import backoff
 import numpy as np
 from scipy.ndimage.filters import convolve
@@ -52,7 +53,7 @@ def position_merge(ep, root_id, merges, endpoint_nm, error_locs, seg):
     m_list = list(ms)
     soma_table = get_soma(m_list)
     polarity_table = is_dendrite(endpoint_nm, m_list)
-    thresholds_dict, thresholds_dict = trajectory_filter(root_id, m_list, seg)
+    thresholds_dict, thresholds_list = trajectory_filter(root_id, m_list, seg)
     for i, k in enumerate(merges):
         soma_filter = False
         if k[0] in root_id:
@@ -541,6 +542,8 @@ def merge_paths(path_list,rids,ep,root_id, soma, polarity):
 def trajectory_filter(root_id, seg_ids, seg):
     angle_dict = {}
     angle_list = []
+    if type(root_id) == list:
+        root_id = root_id[0]
     meangrad_root = calc_seg_gradient(int(root_id), seg)
     for i in seg_ids:
         if i == root_id:

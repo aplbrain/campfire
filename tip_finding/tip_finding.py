@@ -4,7 +4,7 @@ from caveclient import CAVEclient
 import trimesh
 import numpy as np
 
-def tip_finder_decimation(root_id, nucleus_id=None, time=None, pt_position=None, sqs_queue_name = "None", save_df=False, save_nvq=False):
+def get_skel(root_id):
     datastack_name = "minnie65_phase3_v1"
     client = CAVEclient(datastack_name)
     vol = CloudVolume(
@@ -18,6 +18,34 @@ def tip_finder_decimation(root_id, nucleus_id=None, time=None, pt_position=None,
     mesh = vol.mesh.get(str(root_id))
     mesh = mesh[int(root_id)]
     n_faces = mesh.faces.shape[0]
+
+    if n_faces < 1000:
+        return 'stub'
+    skel = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh.vertices, 
+                                                                mesh.faces))
+    return skel
+
+def tip_finder_decimation(root_id, nucleus_id=None, time=None, pt_position=None, sqs_queue_name = "None", save_df=False, save_nvq=False):
+    datastack_name = "minnie65_phase3_v1"
+    client = CAVEclient(datastack_name)
+    vol = CloudVolume(
+            client.info.segmentation_source(),
+            use_https=True,
+            progress=False,
+            bounded=False,
+            fill_missing=True,
+            secrets={"token": client.auth.token}
+        )
+    mesh = vol.mesh.get(str(root_id))
+    mesh = mesh[int(root_id)]
+
+    n_faces = mesh.faces.shape[0]
+    if n_faces < 1000:
+        if not pt_position:
+            return [tuple(mesh_obj.vertices.mean(axis=0).astype('int'))]
+        else:
+            return mesh_obj.vertices[np.argmin(np.sqrt(np.sum(np.square(mesh_obj.vertices - pt_position), axis=1)))]
+    
     mesh_obj = trimesh.Trimesh(mesh.vertices, mesh.faces, mesh.normals)
     decimated = trimesh.Trimesh.simplify_quadratic_decimation(mesh_obj, n_faces*.05)
 

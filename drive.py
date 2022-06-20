@@ -39,20 +39,20 @@ def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), 
 def segment_gt_points(radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, threshold=8):
     
-    gt_df = pd.read_csv("./matched_gt.csv")
-
+    gt_df = pd.read_csv("./expanded_gt.csv")
     merges = pd.DataFrame()
     for rid in gt_df.Root_id.unique():
-            root_id = int(gt_df.iloc[0].Root_id)
-            ext = Ext(root_id, resolution, radius, unet_bound_mult, 
-              device, save, nucleus_id, time_point)
+            root_id = int(gt_df.iloc[0].Root_id[:-1])
+
             filt_df = gt_df[gt_df.Root_id == rid]
             for i in range(filt_df.shape[0]):
                 row = filt_df.iloc[i]
-
                 endpoint = eval(row.EP)
-
-                ext.gen_membranes(endpoint)
+                print(root_id, endpoint)
+                ext = Ext(root_id, resolution, radius, unet_bound_mult, 
+                device, save, nucleus_id, time_point, endpoint)
+                ext.get_bounds(endpoint)
+                ext.gen_membranes()
                 ext.run_agents()
                 initial_merges = ext.merges
                 initial_merges.to_csv(f"merges_{root_id}_{row.EP}.csv")
@@ -74,3 +74,6 @@ def segment_gt_points(radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1
 def sqs_agents(radius=(200,200,20), delete=False):
     root_id, nucleus_id, time_point, endp = utils.get_endpoint('sqs', delete, endp, root_id, nucleus_id, time_point)
     merges = drive()
+
+if __name__ == "__main__":
+    segment_gt_points()
