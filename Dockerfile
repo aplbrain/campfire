@@ -18,4 +18,5 @@ RUN pip3 install -e ./neuvue-client
 RUN pip3 install -r requirements.txt
 COPY . /root/campfire
 
-CMD [ "python3", "drive.py", "1000", "unet_bound_mult=1.5", "ep=sqs", "save=nvq","device=cpu"]
+# CMD [ "python3", "drive.py", "1000", "unet_bound_mult=1.5", "ep=sqs", "save=nvq","device=cpu"]
+CMD [ "python3", "drive.py", "save=pd","device=cpu"]

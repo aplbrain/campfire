@@ -14,7 +14,7 @@ def load_membrane_vectors(precomp_fn):
     data = temp["data"]
     return data
 
-def precompute_membrane_vectors(mem, memz, precomp_fn=None, mem_radius=3):
+def precompute_membrane_vectors(mem, memz, mem_radius=3):
     """
     Convolve membrane with each directional sensor and then
     concatenate channels to form a lookup table
@@ -38,188 +38,10 @@ def precompute_membrane_vectors(mem, memz, precomp_fn=None, mem_radius=3):
     mem_z = convolve(memz, kz, mode="constant", cval=5)[..., np.newaxis]
 
     data = np.concatenate((mem_x, mem_y, mem_z), axis=-1)
-    if precomp_fn:
-        np.savez(precomp_fn, data=data)
+
     return data
 
-# Create a queue out of any of the above sampling methods
-def create_queue(data_shape, n_pts, sampling_type="lin",
-    isotropy=10, segmentation=np.zeros(1), root_id=-1, endpoint_nm=None):
-    """
-    Create spawn position list based on the desired sampling method
-
-    Arguments:
-        data_shape: (x,y,z) shape of the image / membrane data
-        n_pts:  number of points per dimension to spawn linearly
-        sampling type: "lin" or "synapse" to switch modes
-        syns: for synapse spawning, the IDS to spawn at
-
-    Returns:
-        q: list of positions to spawn at
-    """
-    if sampling_type == "lin":
-        x_coords = np.round(
-            np.linspace(0.025 * data_shape[0], 0.975 * data_shape[0], n_pts)
-        )
-        y_coords = np.round(
-            np.linspace(0.025 * data_shape[1], 0.975 * data_shape[1], n_pts)
-        )
-        z_coords = np.round(
-            np.linspace(0.025 * data_shape[2], 0.975 * data_shape[2], n_pts // isotropy)
-        )
-
-        q = []
-        for x in range(n_pts):
-            for y in range(n_pts):
-                for z in range(n_pts // isotropy):
-                    q.append([x_coords[x], y_coords[y], z_coords[z]])
-        return q
-    if sampling_type == "extension":
-        q = []
-        ids, all_ids, centers, sizes_list = get_contacts(segmentation, root_id, conv_size=6)
-        data_size = data_shape[0] * data_shape[1]
-        ct=0
-        ids = ids[ids != 0]
-        soma_table = get_soma(all_ids)
-        polarity_table = is_dendrite(endpoint_nm, all_ids)
-        for i in ids:
-            if i != root_id and soma_table.get_soma(i) > 0:
-                continue
-            if i != root_id and not polarity_table.dendrite_filt(root_id, i):
-                continue
-            centers_list = centers[i]
-            sizes_ext = sizes_list[i]
-            for j in range(len(centers_list)):
-                n_gen = int(sizes_ext[j] / data_size * n_pts)
-                if sizes_ext[j] > 0:
-                    n_gen += 1
-
-                for _ in range(n_gen):
-                    q.append([*centers_list[j]])
-                ct += 1
-        return q, soma_table, polarity_table
-    if sampling_type == "extension_only":
-        q = []
-        centers_list, sizes_list = get_seg_slices(root_id, segmentation)
-        polarity_table = is_dendrite(endpoint_nm, root_id)
-        polarity = polarity_table.dendrite_df[polarity_table.dendrite_df.seg_id==root_id].iloc[0].polarity
-        data_size = data_shape[0] * data_shape[1]
-        ct=0
-        for j in range(len(centers_list)):
-            n_gen = int(sizes_list[j] / data_size * n_pts)
-            if sizes_list[j] > 0:
-                n_gen += 1
-            for _ in range(n_gen):
-                q.append([*centers_list[j]])
-            ct += 1
-        return q, polarity
-
-def spawn_from_neuron_extension(neurons, n_pts_per_neuron, ids=None):
-    """
-    Generate a set of agent spawning points given a volume of ground truth neurons
-    :param neurons: Numpy array of neurons (with integer IDs)
-    :param n_pts_per_neuron: Number of points to sample
-    :param ids: [Optional] List of ids from which to downselect
-    :return:
-
-    TODO flesh out this old function for the extension task
-    """
-    if ids is not None:
-        unique_neurons = ids
-    else:
-        unique_neurons = np.unique(neurons.flatten())
-        unique_neurons = unique_neurons[unique_neurons > 0]
-
-    x, y, z = np.meshgrid(
-        np.arange(neurons.shape[0]),
-        np.arange(neurons.shape[1]),
-        np.arange(neurons.shape[2]),
-    )
-
-    pts = []
-    for neuron_id in unique_neurons:
-        xn, yn, zn = (
-            x[neurons == neuron_id],
-            y[neurons == neuron_id],
-            z[neurons == neuron_id],
-        )
-
-        idx = np.random.choice(np.arange(xn.flatten().shape[0]), n_pts_per_neuron)
-        for ind in idx:
-            start_pt = [xn.flatten()[ind], yn.flatten()[ind], zn.flatten()[ind]]
-            pts.append(start_pt)
-
-    return pts
-
-def get_contacts(seg, root_id,conv_size=3):
-    from scipy.ndimage.filters import convolve
-    import copy
-    import agents.data_loader as data_loader
-
-    seg_mask = copy.deepcopy(seg)
-    seg_copy = copy.deepcopy(seg)
-
-    seg_mask[np.logical_not(seg_mask == root_id)] = 0
-    seg_mask[seg_mask > 0] = 1
-    kernel = np.ones((conv_size,conv_size,conv_size), np.uint8)
-    seg_dilate = convolve(seg_mask, kernel, mode="constant", cval=0)
-
-    close_ids = np.unique(seg_copy[seg_dilate > 0])
-    all_ids = np.unique(seg_copy)
-
-    centers = {}
-    sizes = {}
-
-    points = np.argwhere(seg_copy == root_id)
-    points_z = points[:,2]
-    centers_list = []
-    sizes_list = []
-    for z in range(np.min(points_z), np.max(points_z)+1):
-        if z < 2 or z > 198:
-            continue
-        points_slice = np.argwhere(seg_copy[:,:,z] == root_id)
-        centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
-        sizes_list.append(len(points_slice))
-    centers[root_id] = centers_list
-    sizes[root_id] = sizes_list
-    for rid in close_ids:
-        points = np.argwhere(seg_copy == rid)
-        points_z = points[:,2]
-        centers_list = []
-        sizes_list = []
-        for z in range(np.min(points_z), np.max(points_z)+1):
-            points_slice = np.argwhere(seg_copy[:,:,z] == rid)
-            mean_pt = np.mean(points_slice, axis=0)
-            if points_slice.shape[0] > 0 and seg[int(mean_pt[0]), int(mean_pt[1]), z] == rid:
-                centers_list.append([*list(mean_pt.astype(np.uint64)), z])
-                sizes_list.append(len(points_slice))
-
-        centers[rid] = centers_list
-        sizes[rid] = sizes_list
-
-    return close_ids, all_ids, centers, sizes
-
-def get_seg_slices(root_id, seg):
-    import  copy
-    seg_mask = copy.deepcopy(seg)
-
-    seg_mask[np.logical_not(seg_mask == root_id)] = 0
-    seg_mask[seg_mask > 0] = 1
-    sizes_list = []
-
-    points = np.argwhere(seg == root_id)
-    points_z = points[:,2]
-    centers_list = []
-    for z in range(np.min(points_z), np.max(points_z)+1):
-        if z < 2 or z > 198:
-            continue
-        points_slice = np.argwhere(seg[:,:,z] == root_id)
-        centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
-        sizes_list.append(len(points_slice))
-
-    return centers_list, sizes_list
-
-def position_merge(ep, root_id, merges, endpoint_nm):
+def position_merge(ep, root_id, merges, endpoint_nm, error_locs, seg):
     merge_df = pd.DataFrame()
 
     ms = set()
@@ -230,12 +52,13 @@ def position_merge(ep, root_id, merges, endpoint_nm):
     m_list = list(ms)
     soma_table = get_soma(m_list)
     polarity_table = is_dendrite(endpoint_nm, m_list)
-    
+    thresholds_dict, thresholds_dict = trajectory_filter(root_id, m_list, seg)
     for i, k in enumerate(merges):
-        if k[0] == root_id:
+        soma_filter = False
+        if k[0] in root_id:
             extension = k[1]
             weight = merges[k]
-        elif k[1] == root_id:
+        elif k[1] in root_id:
             extension = k[0]
             weight = merges[k]
         else:
@@ -243,10 +66,24 @@ def position_merge(ep, root_id, merges, endpoint_nm):
         if extension == 0:
             continue
         if soma_table.get_soma(extension) > 0:
-            continue
-        if polarity_table.dendrite_filt(root_id, extension):
-            continue
-        d = {"EP":[ep], "Root_id":str(root_id), "Extension":str(extension), "Weight":weight}
+            soma_filter=True
+        mixed_polarity_root, n_pre_root, n_post_root, n_pre_seg, n_post_seg, mixed_polarity_seg = polarity_table.dendrite_filt(root_id[0], extension)
+
+        d = {
+            "EP":[ep], 
+            "Root_id":str(root_id[0]), 
+            "Extension":str(extension), 
+            "Weight":weight, 
+            "mix_root": mixed_polarity_root, 
+            "n_pre_root":n_pre_root, 
+            "n_post_root":n_post_root, 
+            "n_pre_seg":n_pre_seg, 
+            "n_post_seg":n_post_seg,
+            "mix_seg":mixed_polarity_seg,
+            "Soma_filter":soma_filter,
+            "Error_locs":[error_locs],
+            "Angle":thresholds_dict[int(extension)]
+            }
 
         merge_df = pd.concat([merge_df, pd.DataFrame(d, index=[i])])
     return merge_df
@@ -368,7 +205,6 @@ class get_soma():
         cave_client = CAVEclient('minnie65_phase3_v1')
         soma = cave_client.materialize.query_table(
             "nucleus_neuron_svm",
-            materialization_version = 117,
             filter_in_dict={'pt_root_id':seg_ids},
             select_columns=['id','pt_root_id', 'pt_position']
         )
@@ -389,11 +225,13 @@ def make_bounding_box(point, distance):
 
 class is_dendrite():
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
-    def __init__(self, endpoint, seg_ids):
-        new_ids, seg_dict = get_current_seg_ids(seg_ids)
+    def __init__(self, endpoint, seg_ids, update=False):
+        if not update:
+            new_ids = seg_ids
+            seg_dict = dict(zip(seg_ids, seg_ids))
         # Create a client for the Minnie65 PCG and Tables
         client = CAVEclient('minnie65_phase3_v1')
-        bounding_box = make_bounding_box(endpoint, 10000)
+        bounding_box = make_bounding_box(endpoint, 5000)
         synapse_table = 'synapses_pni_2'
         post_ids = client.materialize.query_table(synapse_table,
         filter_in_dict={'post_pt_root_id': new_ids},
@@ -410,32 +248,28 @@ class is_dendrite():
         for ind, i in enumerate(new_ids):
             len_post = len(post_ids[post_ids["post_pt_root_id"] == i])
             len_pre = len(pre_ids[pre_ids["pre_pt_root_id"] == i])
-            if len_post == len_pre and len_post == 0:
-                polarity="No synapses"
-                mixed_polarity=False
-            elif len_post > 1 and len_pre > 0:
-                polarity="Dendrite"
+
+            if len_post > 0 and len_pre > 0:
                 mixed_polarity=True
-            elif len_post > 1 and len_pre == 0:
-                polarity="Denrite"
-                mixed_polarity=False
             else:
-                polarity="Axon"
                 mixed_polarity=False
-            dendrite_df = pd.concat([dendrite_df, pd.DataFrame({'seg_id':seg_dict[i], 'polarity':polarity, 'mixed_polarity':mixed_polarity}, index=[ind])])
+            dendrite_df = pd.concat([dendrite_df, pd.DataFrame({'seg_id':seg_dict[i], 'n_pre':len_pre, 'n_post':len_post, 'mixed_polarity':mixed_polarity}, index=[ind])])
+        self.current_ids = seg_dict
         self.dendrite_df = dendrite_df
 
     def dendrite_filt(self, root_id, seg_id):
-        polarity_root = self.dendrite_df[self.dendrite_df.seg_id==root_id].polarity.iloc[0]
+        root = self.dendrite_df[self.dendrite_df.seg_id==root_id].iloc[0]
+        mixed_polarity_root = root.mixed_polarity
+        n_pre_root = root.n_pre
+        n_post_root = root.n_post
+        
         seg = self.dendrite_df[self.dendrite_df.seg_id==seg_id].iloc[0]
-        polarity_seg = seg.polarity
-        mixed_polarity = seg.mixed_polarity
-        if polarity_root == polarity_seg:
-            return False
-        if polarity_root == "Unknown" or polarity_seg == "Unknown":
-            return True
-        else:
-            return True
+
+        n_pre_seg = seg.n_pre
+        n_post_seg = seg.n_post
+        mixed_polarity_seg = seg.mixed_polarity
+    
+        return mixed_polarity_root, n_pre_root, n_post_root, n_pre_seg, n_post_seg, mixed_polarity_seg
 
 def shift_detect(em, radius, n_windows, n_hits=-1,threshold=10,zero_threshold=.75):
     if n_hits == -1:
@@ -447,6 +281,7 @@ def shift_detect(em, radius, n_windows, n_hits=-1,threshold=10,zero_threshold=.7
     centers = np.linspace(0,em_shape[0],n_windows + 2).astype(int)[1:-1]
     errors = np.full(em_shape[2], True)
     errors_zero = np.full(em_shape[2], False)
+    error_dict = {}
 
     if np.sum(em[:,:,0]==0) > zero_threshold*em_shape[0]*em_shape[1]:
         errors_zero[0] = True
@@ -457,6 +292,10 @@ def shift_detect(em, radius, n_windows, n_hits=-1,threshold=10,zero_threshold=.7
         frame=em[:,:,i]
         if np.sum(em[:,:,i]==0) > zero_threshold*em_shape[0]*em_shape[1]:
             errors_zero[i] = True
+            error_dict[i] = "Zero"
+        else:
+            error_dict[i] = "No Error"
+
         for k in range(n_windows):
             if centers[k]-radius < 0 or centers[k]+radius > em_shape[0]:
                 continue
@@ -471,7 +310,12 @@ def shift_detect(em, radius, n_windows, n_hits=-1,threshold=10,zero_threshold=.7
         if np.sum(np.array(means) < threshold) >= n_hits:
             errors[i-1] = False
             errors[i] = False
-    return errors, errors_zero
+            error_dict[i] = "No Error"
+            error_dict[i-1] = "No Error"
+        else:
+            error_dict[i] = "Shift Error"
+            error_dict[i-1] = "Shift Error"
+    return errors, errors_zero, error_dict
 
 def remove_shifts(em, errors,zero_or_remove='zero'):
     if zero_or_remove == 'zero':
@@ -482,7 +326,7 @@ def remove_shifts(em, errors,zero_or_remove='zero'):
 
 def alignImages(im1, im2, MAX_FEATURES=500, GOOD_MATCH_PERCENT = 0.15):
 
-  # Detect ORB features and compute descriptors.
+# Detect ORB features and compute descriptors.
     orb = cv2.ORB_create(MAX_FEATURES)
     keypoints1, descriptors1 = orb.detectAndCompute(im1, None)
     keypoints2, descriptors2 = orb.detectAndCompute(im2, None)
@@ -524,6 +368,54 @@ def alignImages(im1, im2, MAX_FEATURES=500, GOOD_MATCH_PERCENT = 0.15):
     except:
         return("Fail Misaligned", np.zeros((3,3)))
     return im1Reg, h
+    
+def get_contacts(seg, root_id,conv_size=3):
+    from scipy.ndimage.filters import convolve
+    import copy
+    import agents.data_loader as data_loader
+
+    seg_mask = copy.deepcopy(seg)
+    seg_copy = copy.deepcopy(seg)
+
+    seg_mask[np.logical_not(seg_mask == root_id)] = 0
+    seg_mask[seg_mask > 0] = 1
+    kernel = np.ones((conv_size,conv_size,conv_size), np.uint8)
+    seg_dilate = convolve(seg_mask, kernel, mode="constant", cval=0)
+
+    close_ids = np.unique(seg_copy[seg_dilate > 0])
+    all_ids = np.unique(seg_copy)
+
+    centers = {}
+    sizes = {}
+
+    points = np.argwhere(seg_copy == root_id)
+    points_z = points[:,2]
+    centers_list = []
+    sizes_list = []
+    for z in range(np.min(points_z), np.max(points_z)+1):
+        if z < 2 or z > 198:
+            continue
+        points_slice = np.argwhere(seg_copy[:,:,z] == root_id)
+        centers_list.append([*list(np.mean(points_slice, axis=0).astype(int)), z])
+        sizes_list.append(len(points_slice))
+    centers[root_id] = centers_list
+    sizes[root_id] = sizes_list
+    for rid in close_ids:
+        points = np.argwhere(seg_copy == rid)
+        points_z = points[:,2]
+        centers_list = []
+        sizes_list = []
+        for z in range(np.min(points_z), np.max(points_z)+1):
+            points_slice = np.argwhere(seg_copy[:,:,z] == rid)
+            mean_pt = np.mean(points_slice, axis=0)
+            if points_slice.shape[0] > 0 and seg[int(mean_pt[0]), int(mean_pt[1]), z] == rid:
+                centers_list.append([*list(mean_pt.astype(np.uint64)), z])
+                sizes_list.append(len(points_slice))
+
+        centers[rid] = centers_list
+        sizes[rid] = sizes_list
+
+    return close_ids, all_ids, centers, sizes
 
 def get_public_seg_ids(seg_ids):
     if type(seg_ids) != list:
@@ -533,6 +425,8 @@ def get_public_seg_ids(seg_ids):
     past_ids = client.chunkedgraph.get_past_ids(root_ids=seg_ids,timestamp_past=ts)
     ids = list(past_ids['past_id_map'].keys())
     public_ids = []
+    seg_dict={}
+
     for j, id_key in enumerate(ids):
         k = past_ids['past_id_map'][id_key]
         public_ids.append(int(k[0]))
@@ -626,7 +520,7 @@ class Intersection():
                 continue
             if soma.get_soma(int(to_merge)) > 0:
                 continue
-            if polarity.dendrite_filt(int(root_id), int(to_merge)):
+            if polarity.dendrite_filt(int(root_id), int(to_merge))[0]:
                 continue
             weight = weight_dict[c]
             locs = loc_dict[c]
@@ -643,3 +537,55 @@ def merge_paths(path_list,rids,ep,root_id, soma, polarity):
     clash =  inter.clash()
     weighted_merge = inter.merge(clash,soma, polarity, ep,root_id)
     return weighted_merge
+
+def trajectory_filter(root_id, seg_ids, seg):
+    angle_dict = {}
+    angle_list = []
+    meangrad_root = calc_seg_gradient(int(root_id), seg)
+    for i in seg_ids:
+        if i == root_id:
+            continue
+        meangrad_seg = calc_seg_gradient(i, seg)
+        dot = np.dot(meangrad_root, meangrad_seg)
+        angle = np.arccos(dot)
+        angle_dict[i]=angle
+        angle_list.append(angle)
+    return angle_dict, angle_list
+
+def calc_seg_gradient(seg_id, seg, rez = np.array([4,4,40])):
+    
+    coords = np.argwhere(seg == int(seg_id)) #* rez
+    points_z = coords[:,2]
+    minz, maxz = np.min(points_z), np.max(points_z)
+    unique_pointz = sorted(np.unique(points_z))
+    gradients = np.zeros((len(unique_pointz),3))
+
+    for i, z in enumerate(range(1,len(unique_pointz))):
+        cz, lz = unique_pointz[z], unique_pointz[z-1]
+        
+        pointz_last = coords[coords[:,2] == lz]
+        pointz = coords[coords[:,2] == cz]
+        mean_slice = np.mean(pointz[:,:2], axis=0) 
+        mean_last = np.mean(pointz_last[:,:2], axis=0)
+
+        weights_slice = np.square(pointz[:,:2]-mean_slice)
+
+        weights_slice[weights_slice == 0] = 1e-5
+
+        weights_slice = np.divide(1,weights_slice).reshape(weights_slice.shape)
+        
+        weights_last = np.square(pointz_last[:,:2]-mean_last)
+        weights_last[weights_last == 0] = 1e-5
+
+        weights_last = np.divide(1,weights_last).reshape(weights_last.shape)
+
+        mean_slice=np.mean(pointz[:,:2]*1, axis=0) 
+        mean_last=np.mean(pointz_last[:,:2]*1, axis=0)
+        
+        meanshift = mean_slice- mean_last
+        gradients[i] = [meanshift[0], meanshift[1], 0]
+        gradients[i] = gradients[i] / np.linalg.norm(gradients[i])
+        gradients[i][2] = 1
+    meangrad = np.mean(gradients, axis=0)
+    meangrad = meangrad / np.linalg.norm(meangrad)
+    return meangrad
