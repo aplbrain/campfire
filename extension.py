@@ -44,6 +44,11 @@ class Extension():
         self.seg, self.em = self.get_data()
         self.mem_to_run, self.mem_seg, self.error_dict, self.compute_vectors = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
     
+    def membrane_seg_save(self):
+
+        self.seg, self.em = self.get_data()
+        self.mem_to_run, self.mem_seg, self.error_dict, self.compute_vectors = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
+
     def run_agents(self):
         tic = time.time()
         sensor_list = [
@@ -190,6 +195,8 @@ class Extension():
         elif seg_or_sv == 'sv':
             self.seg_root_id = self.root_id
             seg = data_loader.supervoxels(*self.bound)
+        elif seg_or_sv == 'membranes':
+            seg = 0
         vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
 
         try:
@@ -229,7 +236,7 @@ def get_endpoint(ep_param, delete, endp, root_id, nucleus_id, time_point):
 def em_analysis(em, cnn_weights, unet_bound_mult, radius, device, bound_EM):
 
     errors_shift, errors_zero, error_dict = scripts.shift_detect(em, 100, 1, 1, 10)
-    vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
+    # vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
     # mem_seg = np.asarray(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]])
     # if np.sum(mem_seg) == 0:
     if 0 == 0:
@@ -249,7 +256,6 @@ def em_analysis(em, cnn_weights, unet_bound_mult, radius, device, bound_EM):
     vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
 
     return mem_to_run, mem_seg, error_dict, compute_vectors
-
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
                 bound_EM, mem_seg, device, duration, error_dict):
