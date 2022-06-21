@@ -36,8 +36,10 @@ def find_extension_id(point, root_id, em_vol, seg_vol, cave_client, radius=(256,
     # root_id = seg[int(radius[0]/2), int(radius[1]/2), int(radius[2]/2)]
     idx = np.where(ids == root_id)
     ids, counts = np.delete(ids, idx), np.delete(counts, idx)
+    idx = np.flip(np.argsort(counts))
+    idx, counts = ids[idx], counts[idx]
 
-    return ids[np.argmax(counts)] if counts.size > 0 else -1, seg[int(radius[0]/2), int(radius[1]/2), int(radius[2]/2)]
+    return ids[0] if counts.size > 0 else -1, seg[int(radius[0]/2), int(radius[1]/2), int(radius[2]/2)], ids, counts
 
 
 def main(df):
@@ -48,13 +50,19 @@ def main(df):
     cave_client = CAVEclient('minnie65_phase3_v1')
     ext_ids = []
     root_ids = []
+    ids_list = []
+    counts_list = []
     for i, row in tqdm(df.iterrows(), desc='Points', total=len(df)):
-        ext_id, root_id = find_extension_id(row["EP"], int(row["Root_id"][:-1]), em_vol, seg_vol, cave_client)
+        ext_id, root_id, ids, counts = find_extension_id(row["EP"], int(row["Root_id"][:-1]), em_vol, seg_vol, cave_client)
         ext_ids.append(ext_id)
         root_ids.append(root_id)
+        ids_list.append(ids)
+        counts_list.append(counts)
     df.insert(len(df.columns), "Watershed_ext", [(str(ext_id) + '/') for ext_id in ext_ids])
     df.insert(len(df.columns), "Watershed_root_id", [(str(root_id) + '/') for root_id in root_ids])
-    df.to_csv("results.csv", )
+    df.insert(len(df.columns), "Watershed_ids", ids_list)
+    df.insert(len(df.columns), "Watershed_counts", counts_list)
+    df.to_csv("watershed_results.csv")
 
 
 if __name__ == "__main__":
