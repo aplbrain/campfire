@@ -3,6 +3,7 @@ from membrane_detection import membranes
 import agents.scripts as scripts
 import numpy as np
 from cloudvolume import CloudVolume
+from cloudvolume import exceptions as cvExceptions
 from agents import data_loader
 from caveclient import CAVEclient
 from intern import array
@@ -47,8 +48,11 @@ class Extension():
     def membrane_seg_save(self):
 
         self.seg, self.em = self.get_data()
-        self.mem_to_run, self.mem_seg, self.error_dict, self.compute_vectors = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
+        if type(self.seg) == int:
+            return False
 
+        self.mem_to_run, self.mem_seg, self.error_dict, self.compute_vectors = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
+        return True
     def run_agents(self):
         tic = time.time()
         sensor_list = [
@@ -189,20 +193,22 @@ class Extension():
             self.weights_dict = {}
         return True
     def get_data(self, seg_or_sv = 'sv'):
-        if seg_or_sv == 'seg':
-            self.seg_root_id = self.public_root_id
-            seg = np.squeeze(data_loader.get_seg(*self.bound))
-        elif seg_or_sv == 'sv':
-            self.seg_root_id = self.root_id
-            seg = data_loader.supervoxels(*self.bound)
-        elif seg_or_sv == 'membranes':
-            seg = 0
+        
         vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
 
         try:
             em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
-        except OutOfBoundsError:
-            print("OOB")
+
+            if seg_or_sv == 'seg':
+                self.seg_root_id = self.public_root_id
+                seg = np.squeeze(data_loader.get_seg(*self.bound))
+            elif seg_or_sv == 'sv':
+                self.seg_root_id = self.root_id
+                seg = data_loader.supervoxels(*self.bound)
+            elif seg_or_sv == 'membranes':
+                seg = 0
+        except (cvExceptions.OutOfBoundsError, cvExceptions.EmptyVolumeException):
+            return -1, -1
 
         return seg, em 
 def get_bounds(endpoint, radius, mult=1):
