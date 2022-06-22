@@ -53,12 +53,12 @@ def multi_soma_count(root_ids: list) -> dict:
     root_ids_str = list(map(str, root_ids))
     soma_exists_df = get_num_soma_mult(root_ids_str)
     # Drop non-neuronal types
-    non_neuron_df = soma_exists_df[soma_exists_df.cell_type == 'not-neuron']
-    soma_exists_df = soma_exists_df[(soma_exists_df.classification_system == 'is_neuron') & (soma_exists_df.cell_type == 'neuron')]
+    # non_neuron_df = soma_exists_df[soma_exists_df.cell_type == 'not-neuron']
+    # soma_exists_df = soma_exists_df[soma_exists_df.cell_type == 'neuron']
 
     num_soma_sr = soma_exists_df['pt_root_id'].value_counts()
     for i in root_ids:
-        if int(i) not in num_soma_sr.index and int(i) not in list(non_neuron_df['pt_root_id']):
+        if int(i) not in num_soma_sr.index: # and int(i) not in list(non_neuron_df['pt_root_id']):
             num_soma_sr[int(i)] = 0
     
     num_soma_dict = num_soma_sr.to_dict()
@@ -100,10 +100,8 @@ def get_tables(datastack: str):
 
 
 if __name__ == "__main__":
-    some_list = [864691135631953092, 864691135582201586, 864691135793688093, 864691134890716624, 864691136361681122, 864691136909215598]
-    nonneuron_list = [864691135822954356, 864691135454281322, 864691135822954356]
-    some_list = list(map(str, some_list))
-    act = multi_soma_count(ooga_list)
-    actt = get_num_soma_mult(ooga_list)
-    lol = {k:v for k,v in act.items() if v>1}
-    print(lol)
+    nonneuron_list = [864691136909215598]
+    some_list = list(map(str, nonneuron_list))
+    act = multi_soma_count(some_list)
+    actt = get_num_soma_mult(some_list)
+    print(act)
