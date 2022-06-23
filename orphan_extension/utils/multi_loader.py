@@ -31,6 +31,9 @@ def get_num_soma_mult(root_ids: list):
 
 
 def axon_dendrite_conditions(pre_syn, post_syn):
+    """
+    Pre-established utility function used in multi_proc_type. Contain in numpy.vectorize.
+    """
     if pre_syn > post_syn:
         return 'axon'
     elif pre_syn < post_syn:
@@ -40,14 +43,22 @@ def axon_dendrite_conditions(pre_syn, post_syn):
 
 
 def multi_soma_count(root_ids: list) -> dict:
+    """
+    #### Gets number of somas in arbitrary amount of segs.
+
+    Parameter: root_ids: input list of seg ids
+
+    Returns:num_soma_dict: dictionary where key is seg id and value is number of somas
+    """
     root_ids_str = list(map(str, root_ids))
     soma_exists_df = get_num_soma_mult(root_ids_str)
     # Drop non-neuronal types
-    soma_exists_df = soma_exists_df[(soma_exists_df.classification_system == 'is_neuron') & (soma_exists_df.cell_type == 'neuron')]
+    # non_neuron_df = soma_exists_df[soma_exists_df.cell_type == 'not-neuron']
+    # soma_exists_df = soma_exists_df[soma_exists_df.cell_type == 'neuron']
 
     num_soma_sr = soma_exists_df['pt_root_id'].value_counts()
     for i in root_ids:
-        if int(i) not in num_soma_sr.index:
+        if int(i) not in num_soma_sr.index: # and int(i) not in list(non_neuron_df['pt_root_id']):
             num_soma_sr[int(i)] = 0
     
     num_soma_dict = num_soma_sr.to_dict()
@@ -79,6 +90,9 @@ def multi_proc_type(root_ids: list) -> dict:
 
 
 def get_tables(datastack: str):
+    """
+    Helper function to grab tables in a datastack. 
+    """
     client = CAVEclient(datastack)
     tables = client.annotation.get_tables()
     
@@ -86,10 +100,8 @@ def get_tables(datastack: str):
 
 
 if __name__ == "__main__":
-    some_list = [864691135631953092, 864691135582201586, 864691135793688093, 864691134890716624, 864691136361681122]
-    nonneuron_list = [864691135822954356, 864691135454281322, 864691135822954356]
-    some_list = list(map(str, some_list))
+    nonneuron_list = [864691136909215598]
+    some_list = list(map(str, nonneuron_list))
     act = multi_soma_count(some_list)
     actt = get_num_soma_mult(some_list)
-    print(actt)
     print(act)

@@ -1,7 +1,6 @@
 from cloudvolume import CloudVolume
 from caveclient import CAVEclient
 import numpy as np
-from requests import HTTPError
 
 def get_em(x_pre, x_post, y_pre, y_post, z_pre, z_post):
     em = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
@@ -15,9 +14,9 @@ def get_nuclei(x_pre, x_post, y_pre, y_post, z_pre, z_post):
     seg = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/nuclei", use_https=True, mip=0)
     return seg[x_pre:x_post, y_pre:y_post, z_pre:z_post]
 
-def supervoxels(x_pre, x_post, y_pre, y_post, z_pre, z_post, simplify_supervoxels=True):
+def supervoxels(x_pre, x_post, y_pre, y_post, z_pre, z_post, simplify_supervoxels=True, as_unique_list=False):
     cave_client = CAVEclient('minnie65_phase3_v1')
-    sv_ids = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/ws", use_https=True, mip=0)
+    sv_ids = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/ws", use_https=True, mip=0, bounded=False, autocrop=True, fill_missing=True)
     sv_ids = sv_ids[x_pre:x_post, y_pre:y_post, z_pre:z_post]
     
     sv_ids = np.asarray(np.squeeze(sv_ids))
@@ -28,6 +27,11 @@ def supervoxels(x_pre, x_post, y_pre, y_post, z_pre, z_post, simplify_supervoxel
         seg_dict = dict(zip(unique_sv_id, segs))
 
         sv_ids = np.array([seg_dict[x] for x in unique_sv_id])[inv].reshape(sv_ids.shape)
+
+    if as_unique_list: 
+        sv_ids = np.reshape(sv_ids, (1, sv_ids.shape[0]*sv_ids.shape[1]*sv_ids.shape[2]))
+        sv_ids = np.unique(sv_ids)
+        sv_ids = sv_ids[sv_ids != 0]
 
     return sv_ids
 
@@ -54,3 +58,9 @@ def get_num_soma(root_id:str):
         filter_equal_dict={'pt_root_id':root_id}
     )
     return len(soma)
+
+if __name__ == "__main__":
+    el_hoyabembe = supervoxels(160307, 161107, 57600, 58400, 16960, 17040, simplify_supervoxels=True, as_unique_list=True)
+    # el_hoyabembe = supervoxels(120307, 120608, 34600, 35400, 15960, 16040, simplify_supervoxels=True)
+    print(el_hoyabembe)
+    
