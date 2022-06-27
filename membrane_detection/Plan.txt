@@ -11,4 +11,4 @@ Plans of attack:
 
 Other things to do:
 (1) Figure out why the decimation isn't working - get all the components > 30 in size and visualize them!
-(2) Figure out why we're getting whackass endpoints with the alternative smoothing strategy
+(2) Figure out why we're getting whackass endpoints with the alternative smoothing strategy when we apply it before doing decimation
