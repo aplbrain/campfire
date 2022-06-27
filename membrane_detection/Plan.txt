@@ -1,0 +1,14 @@
+Goal: Find endpoints of orphans
+Plans of attack:
+(1) Mean shift - to find skeletons, extract endpoints from skeleton
+        1. Downsample in order to make it computationally possible - currently where we're at
+        2. Use masking for each seg id to isolate the part of the slice corresponding to it
+        3. Calculate centroids (can use OpenCV) (find a way to force centroid placed to be within the segmentation)
+        4. Track centroids through subvolumes to extract skeleton
+
+(2) Principal axis - find vector corresponding to principle axis and run this agains tthe mesh to somehow find endpoints (need to hash this out more - little bit fuzzy)
+(3) Alternative smoothing strategy - Apply either Humfrey or Laplacian smoothing prior to decimation and see whether that will help
+
+Other things to do:
+(1) Figure out why the decimation isn't working - get all the components > 30 in size and visualize them!
+(2) Figure out why we're getting whackass endpoints with the alternative smoothing strategy
