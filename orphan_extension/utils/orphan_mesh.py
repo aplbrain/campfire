@@ -1,5 +1,10 @@
-
 import numpy as np
+
+import trimesh
+from trimesh.triangles import mass_properties
+from trimesh.geometry import index_sparse
+from trimesh.util import unitize
+
     
 def to_unit_vector(vector, validate=False, thresh=None, thresh_scalar=100):
     vec_arr = np.asanyarray(vector)
@@ -32,3 +37,25 @@ def to_unit_vector(vector, validate=False, thresh=None, thresh_scalar=100):
 
     else:
         return unitized_vector
+    
+
+def neighbor_vertex_norms(mesh):
+    try:
+        vertices = mesh.vertices
+        faces = mesh.faces
+        face_norms = mesh.face_normals
+    except:
+        raise AttributeError('Mesh object lacks necessary attributes.')
+
+    vertex_norms = index_sparse(len(vertices), faces).dot(face_norms)
+    neighbor_norms = to_unit_vector(vertex_norms)
+
+    return neighbor_norms
+
+
+def derivative_dilate(vertices, faces, norms, vol, finite_diffs):
+    vortices = vertices + norms*finite_diffs
+
+    v = mass_properties(vortices[faces], skip_inertia=True)['volume']
+
+    return (finite_diffs) / (v - vol)
