@@ -178,13 +178,16 @@ if __name__ == "__main__":
     # coords = [x_min, x_max, y_min, y_max, z_min, z_max]
     # orphans = get_orphans(coords)
 
-    bounds = bounding_box_coords([115267, 91839, 21305], boxrad= [100,100,10])
+    bounds = bounding_box_coords([115267, 91839, 21305], boxrad = [100,100,10])
     orphanclass = Orphans(bounds)
     orphans = orphanclass.get_orphans()
     print("Number of orphans:", len(orphans))
     proc_types = orphanclass.get_process_type(orphans)
     print(proc_types)
 
-    # total_size = orphans.values()
-    # total_size = list(total_size)
+    total_size = orphans.keys()
+    total_size = list(total_size)
     # total_size = np.array(total_size)
+    # print(total_size)
+    # print(len(proc_types), len(total_size))
+

@@ -60,7 +60,8 @@ def get_num_soma(root_id:str):
     return len(soma)
 
 if __name__ == "__main__":
-    el_hoyabembe = supervoxels(160307, 161107, 57600, 58400, 16960, 17040, simplify_supervoxels=True, as_unique_list=True)
-    # el_hoyabembe = supervoxels(120307, 120608, 34600, 35400, 15960, 16040, simplify_supervoxels=True)
-    print(el_hoyabembe)
-    
+    # el_hoyabembe = supervoxels(160307, 161107, 57600, 58400, 16960, 17040, simplify_supervoxels=True, as_unique_list=True)
+    # # el_hoyabembe = supervoxels(120307, 120608, 34600, 35400, 15960, 16040, simplify_supervoxels=True)
+    # print(el_hoyabembe.tolist())
+    pass
+
