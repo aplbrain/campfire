@@ -21,7 +21,7 @@ def tip_finder_decimation(root_id, nucleus_id=None, time=None, pt_position=None,
     n_faces = mesh.faces.shape[0]
     mesh_obj = trimesh.Trimesh(mesh.vertices, mesh.faces, mesh.normals)
     # test with humphrey
-    # mesh_obj = trimesh.smoothing.filter_humphrey(mesh_obj, iterations=50)
+    mesh_obj = trimesh.smoothing.filter_humphrey(mesh_obj, iterations=50)
 
     # test with laplacian
     # mesh_obj = trimesh.smoothing.filter_laplacian(mesh_obj, iterations=50)
