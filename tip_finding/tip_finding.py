@@ -20,8 +20,13 @@ def tip_finder_decimation(root_id, nucleus_id=None, time=None, pt_position=None,
     mesh = mesh[int(root_id)]
     n_faces = mesh.faces.shape[0]
     mesh_obj = trimesh.Trimesh(mesh.vertices, mesh.faces, mesh.normals)
-    # Do not decimate n_faces below a threshold
-    decimated = trimesh.Trimesh.simplify_quadratic_decimation(mesh_obj, n_faces*.05)
+    # test with humphrey
+    mesh_obj = trimesh.smoothing.filter_humphrey(mesh_obj, iterations=50)
+
+    # test with laplacian
+    # mesh_obj = trimesh.smoothing.filter_laplacian(mesh_obj, iterations=50)
+    decimated = trimesh.Trimesh.simplify_quadratic_decimation(
+        mesh_obj, n_faces*.50)
 
     edges_by_component = trimesh.graph.connected_component_labels(
         decimated.face_adjacency)
@@ -64,11 +69,5 @@ def tip_finder_decimation(root_id, nucleus_id=None, time=None, pt_position=None,
     # except Exception as e:
     #     print(e, "s3 upload failed")
     #     save_skel = 'h5'
-    
-    return tl, skel
 
-
-if __name__ == "__main__":
-    t1, skel = tip_finder_decimation(864691136700953198)
-    r_v = skel.vertices[skel.root]
-    print(skel.vertices[skel.root])
+    return tl, skel, mesh_obj
