@@ -1,17 +1,20 @@
 import numpy as np
+from sklearn import neighbors
+
+import scipy
 
 import trimesh
-from trimesh.triangles import mass_properties
-from trimesh.geometry import index_sparse
-from trimesh.util import unitize
 
-    
-def to_unit_vector(vector, validate=False, thresh=None, thresh_scalar=100):
+
+def to_unit_vector(vector):
+    """
+    Unitizes given vector. Also capable of handling matricies, where rows are isolated.
+    """
     vec_arr = np.asanyarray(vector)
 
-    if not thresh:
-        thresh = np.finfo(np.float64).resolution
-        thresh *= thresh_scalar
+    # Set threshold to remove floating-point inaccuracy
+    thresh = np.finfo(np.float64).resolution
+    thresh *= 100
 
     if len(vec_arr.shape) == 2:
         nm = np.sqrt(np.dot(vec_arr*vec_arr, [1.0]*vec_arr.shape[1]))
@@ -32,14 +35,13 @@ def to_unit_vector(vector, validate=False, thresh=None, thresh_scalar=100):
     else:
         raise ArithmeticError('Internal vector dimension error.')
     
-    if validate:
-        return unitized_vector[non_zero_norms], non_zero_norms
-
-    else:
-        return unitized_vector
+    return unitized_vector
     
 
 def neighbor_vertex_norms(mesh):
+    """
+    Helper function to get vertex normals. Bias from neighboring faces not considered.
+    """
     try:
         vertices = mesh.vertices
         faces = mesh.faces
@@ -47,15 +49,60 @@ def neighbor_vertex_norms(mesh):
     except:
         raise AttributeError('Mesh object lacks necessary attributes.')
 
-    vertex_norms = index_sparse(len(vertices), faces).dot(face_norms)
+    vertex_norms = trimesh.geometry.index_sparse(len(vertices), faces).dot(face_norms)
     neighbor_norms = to_unit_vector(vertex_norms)
 
     return neighbor_norms
 
 
 def derivative_dilate(vertices, faces, norms, vol, finite_diffs):
-    vortices = vertices + norms*finite_diffs
+    """
+    Helper function to get dilation derivative of sets of vertices.
+    """
+    verts_to_dilate = vertices + norms*finite_diffs
 
-    v = mass_properties(vortices[faces], skip_inertia=True)['volume']
+    vertices_dilated = trimesh.triangles.mass_properties(verts_to_dilate[faces], skip_inertia=True)['volume']
 
-    return (finite_diffs) / (v - vol)
+    ddx_vertices_dilated = (finite_diffs) / (vertices_dilated - vol)
+
+    return ddx_vertices_dilated
+
+
+def base_laplacian(mesh, use_inverse=False, static_nodes=[]):
+    """
+     Helper function, gets sparse matrix (as defined by SciPy standard) for
+     downstream Laplacian methods.
+    """
+    try:
+        vertex_neighbors = mesh.vertex_neighbors
+        mesh.vertices
+    except:
+        raise AttributeError('Mesh object lacks necessary attributes')
+
+    # Cannot use asanyarray as it will pass the TrackedArray through
+    vertices = np.asarray(mesh.vertices)
+
+    for node in static_nodes:
+        vertex_neighbors[node] = [node]
+
+    n = np.concatenate(vertex_neighbors)
+    m = np.concatenate([idx]*len(i) for idx, i in enumerate(neighbors))
+
+    if not use_inverse:
+        matrix = np.concatenate([1.0/len(n)]*len(n) for n in vertex_neighbors)
+    else:
+        nm = [1.0/np.maximum(1e-6, np.sqrt(np.dot(
+            vertices[idx] - vertices[i]) ** 2, np.ones(3))) for idx, i in enumerate(vertex_neighbors)]
+        
+        matrix = np.concatenate([i / i.sum() for i in nm])
+    
+    matrix = scipy.sparse.coo_matrix((matrix, (m, n)), shape=[len(vertices)]*2)
+
+    return matrix
+
+
+if __name__ == "__main__":
+    import sys
+    sys.path.append('$HOME/campfire/test_modules/')
+    from test_modules.primary_wrapper import wrapper_run
+    wrapper_run(864691136184827094, [to_unit_vector, derivative_dilate, base_laplacian], in_order=True)
