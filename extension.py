@@ -47,7 +47,7 @@ class Extension():
     
     def membrane_seg_save(self):
 
-        self.seg, self.em = self.get_data(seg_or_sv='membrane')
+        self.seg, self.em = self.get_data(seg_or_sv='membranes')
         if type(self.seg) == int:
             return False
 
