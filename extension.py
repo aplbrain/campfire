@@ -53,6 +53,7 @@ class Extension():
 
         self.success = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
         return True
+
     def run_agents(self):
         tic = time.time()
         sensor_list = [
@@ -256,8 +257,24 @@ def em_analysis(em, cnn_weights, unet_bound_mult, radius, device, bound_EM):
     # mem_to_run = mem_seg[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
     #                 int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
     # compute_vectors = scripts.precompute_membrane_vectors(mem_to_run, mem_to_run, 3)
-    vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
-    # import pickle
+    from intern.remote.boss import BossRemote
+
+    rmt = BossRemote()
+    rmt.create_cutout_to_black(rmt.get_channel('membranes', 'microns', 'minnie65_8x8x40'),
+                               0,
+                               [bound_EM[0], bound_EM[1]],
+                               [bound_EM[2], bound_EM[3]],
+                               [bound_EM[4], bound_EM[5]])
+
+    vol = array("bossdb://microns/minnie65_8x8x40/membranes")
+
+    vol[bound_EM[4]:bound_EM[5],
+        bound_EM[2]:bound_EM[3],
+        bound_EM[0]:bound_EM[1]] = np.zeros((mem_seg.shape[2], mem_seg.shape[1], mem_seg.shape[0]))
+    print("1")
+    vol[bound_EM[4]:bound_EM[5],
+        bound_EM[2]:bound_EM[3],
+        bound_EM[0]:bound_EM[1]] = np.ascontiguousarray(np.rollaxis(mem_seg, 2, 0),dtype=np.uint64)    # import pickle
     # pickle.dump(mem_seg, open("ex_seg.p", "wb"))
     vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
 
