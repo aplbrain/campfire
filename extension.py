@@ -48,8 +48,6 @@ class Extension():
     def membrane_seg_save(self):
 
         self.seg, self.em = self.get_data(seg_or_sv='membranes')
-        if type(self.seg) == int:
-            return False
 
         self.success = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
         return True
