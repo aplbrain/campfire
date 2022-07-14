@@ -73,6 +73,8 @@ def create_queue(data_shape, n_pts, sampling_type="lin",
         q = []
 
         ids, centers, sizes = get_contacts(segmentation, root_id)
+        if len(ids) == 0:
+            return []
         rid_size = sizes[root_id]
         client = CAVEclient('minnie65_phase3_v1')
         for i in ids:
@@ -201,7 +203,7 @@ def merge_paths(path_list,rids,ep,root_id):
     try:
         inter.concArrays()
     except:
-        return {}
+        return pd.DataFrame()
     inter.sortList()
     clash =  inter.clash()
     weighted_merge = inter.merge(clash,ep,root_id)
@@ -234,6 +236,8 @@ def get_contacts(seg, root_id):
 
         points = np.argwhere(seg_copy == root_id)
         points_z = points[:,2]
+        if points_z.shape[0] < 1:
+            return [], {}, {}
         centers_list = []
         for z in range(np.min(points_z), np.max(points_z)+1):
             if z < 2 or z > 198:
