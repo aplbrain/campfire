@@ -47,7 +47,7 @@ class Extension():
     
     def membrane_seg_save(self):
 
-        self.seg, self.em = self.get_data()
+        self.seg, self.em = self.get_data(seg_or_sv='membrane')
         if type(self.seg) == int:
             return False
 
@@ -242,7 +242,7 @@ def get_endpoint(ep_param, delete, endp, root_id, nucleus_id, time_point):
 
 def em_analysis(em, cnn_weights, unet_bound_mult, radius, device, bound_EM):
 
-    errors_shift, errors_zero, error_dict = scripts.shift_detect(em, 100, 1, 1, 10)
+    # errors_shift, errors_zero, error_dict = scripts.shift_detect(em, 100, 1, 1, 10)
     # vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
     # mem_seg = np.asarray(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]])
     # if np.sum(mem_seg) == 0:
@@ -276,7 +276,7 @@ def em_analysis(em, cnn_weights, unet_bound_mult, radius, device, bound_EM):
         bound_EM[2]:bound_EM[3],
         bound_EM[0]:bound_EM[1]] = np.ascontiguousarray(np.rollaxis(mem_seg, 2, 0),dtype=np.uint64)    # import pickle
     # pickle.dump(mem_seg, open("ex_seg.p", "wb"))
-    vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
+    # vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
 
     return True
 
