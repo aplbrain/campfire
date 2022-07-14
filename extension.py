@@ -51,7 +51,7 @@ class Extension():
         if type(self.seg) == int:
             return False
 
-        self.mem_to_run, self.mem_seg, self.error_dict, self.compute_vectors = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
+        self.success = em_analysis(self.em, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM)
         return True
     def run_agents(self):
         tic = time.time()
@@ -251,17 +251,17 @@ def em_analysis(em, cnn_weights, unet_bound_mult, radius, device, bound_EM):
         elif cnn_weights == 'thin':
             mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/model_CREMI_2D.pth", device_s=device)
 
-    mem_seg = scripts.remove_shifts(mem_seg, errors_shift+errors_zero, zero_or_remove='zero')
+    # mem_seg = scripts.remove_shifts(mem_seg, errors_shift+errors_zero, zero_or_remove='zero')
 
-    mem_to_run = mem_seg[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
-                    int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
-    compute_vectors = scripts.precompute_membrane_vectors(mem_to_run, mem_to_run, 3)
+    # mem_to_run = mem_seg[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
+    #                 int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
+    # compute_vectors = scripts.precompute_membrane_vectors(mem_to_run, mem_to_run, 3)
     vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
     # import pickle
     # pickle.dump(mem_seg, open("ex_seg.p", "wb"))
     vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
 
-    return mem_to_run, mem_seg, error_dict, compute_vectors
+    return True
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
                 bound_EM, mem_seg, device, duration, error_dict):
