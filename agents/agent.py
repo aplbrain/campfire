@@ -34,10 +34,10 @@ class Agent:
     def __init__(
         self,
         position: Tuple[float, float, float] = (0, 0, 0),
-        agent_id: int=-1,
-        seg_id: int=-1,
+        agent_id: int = -1,
+        seg_id: int = -1,
         sensors: List[Tuple[Sensor, float]] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Create a new agent.
@@ -102,7 +102,11 @@ class Agent:
             acceleration += weight * vec
             # print(sensor, weight, vec)
         # Set z velocity lower as function of anisotropy
-        self.velocity += [acceleration[0], acceleration[1], acceleration[2] / (swarm_ptr.isotropy)]
+        self.velocity += [
+            acceleration[0],
+            acceleration[1],
+            acceleration[2] / (swarm_ptr.isotropy),
+        ]
         if np.linalg.norm(self.velocity) >= self.max_velocity:
             self.velocity = (
                 self.velocity / np.linalg.norm(self.velocity) * self.max_velocity

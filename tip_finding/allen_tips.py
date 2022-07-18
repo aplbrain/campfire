@@ -67,13 +67,16 @@ def find_endpoints(root_id, **kwargs):
     end_points = sk_l2.vertices[sk_l2.end_points, :]
     return end_points
 
+
 if __name__ == "__main__":
-    client = CAVEclient('minnie65_phase3_v1')
+    client = CAVEclient("minnie65_phase3_v1")
     oid = 864691135761488438  # Root id
-    endpoints = find_endpoints(oid,
-                               client=client,
-                               refine='all',
-                               root_point_resolution=[4, 4, 40],
-                               collapse_soma=True,
-                               n_parallel=8)
+    endpoints = find_endpoints(
+        oid,
+        client=client,
+        refine="all",
+        root_point_resolution=[4, 4, 40],
+        collapse_soma=True,
+        n_parallel=8,
+    )
     print(endpoints)

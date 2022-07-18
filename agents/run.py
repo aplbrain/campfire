@@ -8,6 +8,7 @@ from agents.swarm import Swarm
 from agents.scripts import load_membrane_vectors, create_queue
 import copy
 
+
 def run_agents(**kwargs):
     """
     Primary driver function for agents- organizes variables then steps the swarm n_steps times
@@ -34,7 +35,13 @@ def run_agents(**kwargs):
 
     data = load_membrane_vectors(precompute_fn)
     agent_queue, polarity = create_queue(
-        data.shape, 100, sampling_type="extension_only", root_id=root_id, segmentation=seg, endpoint_nm=endpoint_nm)
+        data.shape,
+        100,
+        sampling_type="extension_only",
+        root_id=root_id,
+        segmentation=seg,
+        endpoint_nm=endpoint_nm,
+    )
     if polarity == "Axon":
         return [], [root_id], []
     # Uncomment this line to add agent spawning linearly throughout the volume

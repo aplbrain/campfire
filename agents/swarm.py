@@ -23,6 +23,7 @@ from agents.agent import Agent
 from agents.sensor import *
 from tqdm import tqdm
 
+
 class Swarm:
     """
     Base class for a swarm of agents.
@@ -104,7 +105,7 @@ class Swarm:
             seg_id = int(seg[init_pos[0], init_pos[1], init_pos[2]])
             # print("SEG", seg_id)
             self.add_agent(init_pos, seg_id, sensor_list, max_velocity)
-    
+
     def set_data(self, data: np.array) -> None:
         """
         Set the data volume for the swarm to use.
@@ -148,7 +149,7 @@ class Swarm:
             sensors=sensor_list,
             max_velocity=max_velocity,
         )
-        self.id_map[self._count]=seg_id
+        self.id_map[self._count] = seg_id
         # change to list comprehension
         self._count += 1
         self.agents.append(agent)
@@ -175,9 +176,7 @@ class Swarm:
             if self.mem[new_pos[0], new_pos[1], new_pos[2]]:
                 found_spot += 1
             else:
-                self.add_agent(
-                    new_pos, agent.sensors, agent.max_velocity
-                )
+                self.add_agent(new_pos, agent.sensors, agent.max_velocity)
                 self._count += 1
                 return True
         return False

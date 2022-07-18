@@ -19,6 +19,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, List, Tuple, Dict
 import numpy as np
 
+
 class Sensor:
     """
     Abstract class for a sensor.
@@ -66,6 +67,7 @@ class BiasSensor(Sensor):
         """
         return self.vec
 
+
 class BrownianMotionSensor(Sensor):
     """
     A Brownian Motion simulator.
@@ -99,7 +101,7 @@ class MembraneSensor(Sensor):
     def __init__(self, membrane, respawn_on_hit=False) -> None:
         self.mems = membrane
         self.vec = np.zeros(3)
-        self.respawn_on_hit=respawn_on_hit
+        self.respawn_on_hit = respawn_on_hit
 
     def get_vector(self, swarm_ptr, agent_ptr):
         """
@@ -161,7 +163,7 @@ class AdjacencySensor(Sensor):
         # Reason 1 - seperation of concerns - membranes as membranes, explored as explored
         # look at both seperate, perhaps. Look at both scenarios and test
         swarm_ptr.agent_map[position] = agent_ptr.agent_id
-        
+
         sub_mat = swarm_ptr.data[
             position[0] - self.vis : position[0] + self.vis + 1,
             position[1] - self.vis : position[1] + self.vis + 1,
@@ -170,7 +172,7 @@ class AdjacencySensor(Sensor):
 
         # Second term here doesn't work yet. Intent is to kill the agent when it sees another agent
         # But we need to ensure that the agent doesn't kill itself on its own trail behind it. TODO
-        if 'resultant_vector' in locals:
+        if "resultant_vector" in locals:
             return resultant_vector
         else:
             raise NotImplementedError
@@ -307,10 +309,14 @@ class DataBoundarySensor(Sensor):
                 self.vector[i] = 1.0
             elif agent_ptr.position[i] > (swarm_ptr.data.shape[i] - self.radius):
                 self.vector[i] = -1.0
-            elif agent_ptr.position[i] < 0 or agent_ptr.position[i] >= swarm_ptr.data.shape[i] - 1:
+            elif (
+                agent_ptr.position[i] < 0
+                or agent_ptr.position[i] >= swarm_ptr.data.shape[i] - 1
+            ):
                 agent_ptr.alive = False
                 agent_ptr.position_history = agent_ptr.position_history[:-2]
                 swarm_ptr.add_random(agent_ptr)
         return self.vector
+
 
 # TODO - maximum velocity probing (Using edt?)
