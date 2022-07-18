@@ -1,12 +1,10 @@
 from collections.abc import Iterable
 import numpy as np
+from caveclient import CAVEclient
+from cloudvolume import CloudVolume
 
 
-class CastingException(Exception):
-    pass
-
-
-def cast_points_within_bounds(point: Iterable, bounds: Iterable, ds_res: Iterable = (1,1,1), boxrad: Iterable = [100,100,10]) -> list:
+def cast_points_within_bounds(point: Iterable, bounds: Iterable = None, ds_res: Iterable = [2,2,1], boxrad: Iterable = [100,100,10]) -> list:
     """
     Casts a point within specified bounds.
 
@@ -20,24 +18,41 @@ def cast_points_within_bounds(point: Iterable, bounds: Iterable, ds_res: Iterabl
     ----------
     casted_region -> list: list containing the axis bounds of the casted region
     """
-    point = list(np.divide(point, ds_res))
-    bounds = list(np.divide(point, ds_res))
+    if not bounds:
+        client = CAVEclient("minnie65_phase3_v1")
+        vol = CloudVolume(client.info.segmentation_source(), use_https=True, progress=False, bounded=False)
+        v_b = vol.bounds.to_list()
+        bounds = [v_b[0],v_b[3],v_b[1],v_b[4],v_b[2],v_b[5]]
 
     if len(bounds) != len(point)*2:
-        raise CastingException('Dimensions not proportional between bounds and point.')
-        
+        raise ValueError('Dimensions not proportional between bounds and point.')
+
+    if len(boxrad) != len(point):
+        raise ValueError('Dimensions not proportional between radius and point.')
+
+
+    if any(i%j != 0 for (i, j) in zip(boxrad, ds_res)):
+        print('\n   Warning: Casting radius not perfectly divisible into current resolution. Result will be truncated.\n')
+    
+    # boxrad = list(np.divide(boxrad, ds_res))
+    point = list(np.divide(point, ds_res))
+    # ds_res.extend(list(ds_res))
+    # bounds = list(np.divide(bounds, ds_res))
+
     db_high = bounds[1::2]
     db_low = bounds[::2]
 
     casted_region = []
 
-    th_bounds = [db_high[i] + boxrad[i] for i in range(len(boxrad))]
-    tl_bounds = [db_low[i] - boxrad[i] for i in range(len(boxrad))]
-    
+    th_bounds = np.add(db_high, np.ceil(boxrad))
+    tl_bounds = np.subtract(db_low, np.ceil(boxrad))
+    # th_bounds = [db_high[i] + np.ceil(boxrad[i]) for i in range(len(boxrad))]
+    # tl_bounds = [db_low[i] - np.ceil(boxrad[i]) for i in range(len(boxrad))]
+
     for i in range(len(point)):
         if point[i] >= th_bounds[i] or point[i] <= tl_bounds[i]:
-            raise CastingException('You are attempting to cast outside absolute boundaries.')
-
+            raise ValueError('You are attempting to cast outside absolute boundaries.')
+            
         if point[i] >= db_high[i]:
             p_low = point[i]-boxrad[i]
             p_high = db_high[i]
@@ -54,7 +69,6 @@ def cast_points_within_bounds(point: Iterable, bounds: Iterable, ds_res: Iterabl
 
 
 if __name__ == "__main__":
-    data_bounds = [26000,220608,30304,161376,14825,27881]
-    point = [220707, 35000, 16000]
-    casted = cast_points_within_bounds(point=point, bounds=data_bounds, boxrad=[400,400,40])
+    point = [107820, 233757, 21960]
+    casted = cast_points_within_bounds(point=point, boxrad=[99,100,10])
     print(casted)
