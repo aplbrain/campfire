@@ -13,6 +13,9 @@ def tip_finder_decimation(
     sqs_queue_name="None",
     save_df=False,
     save_nvq=False,
+    inval_d=5000,
+    num_humfrey_iters=50,
+    decimation_factor=0.5
 ):
     datastack_name = "minnie65_phase3_v1"
     client = CAVEclient(datastack_name)
@@ -29,11 +32,13 @@ def tip_finder_decimation(
     n_faces = mesh.faces.shape[0]
     mesh_obj = trimesh.Trimesh(mesh.vertices, mesh.faces, mesh.normals)
     # test with humphrey
-    mesh_obj = trimesh.smoothing.filter_humphrey(mesh_obj, iterations=50)
+    mesh_obj = trimesh.smoothing.filter_humphrey(
+        mesh_obj, iterations=num_humfrey_iters)
 
     # test with laplacian
     # mesh_obj = trimesh.smoothing.filter_laplacian(mesh_obj, iterations=50)
-    decimated = trimesh.Trimesh.simplify_quadratic_decimation(mesh_obj, n_faces * 0.50)
+    decimated = trimesh.Trimesh.simplify_quadratic_decimation(
+        mesh_obj, n_faces * decimation_factor)
 
     edges_by_component = trimesh.graph.connected_component_labels(
         decimated.face_adjacency
@@ -54,7 +59,7 @@ def tip_finder_decimation(
 
     decimated.update_faces(mask)
     skel = skeletonize.skeletonize_mesh(
-        trimesh_io.Mesh(decimated.vertices, decimated.faces), invalidation_d=5000
+        trimesh_io.Mesh(decimated.vertices, decimated.faces), invalidation_d=inval_d
     )
 
     degree_dict = {}
