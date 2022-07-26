@@ -4,6 +4,8 @@ from caveclient import CAVEclient
 import trimesh
 import numpy as np
 
+from orphan_mesh import Smoothing
+
 
 def orphan_tip_finder(
     root_id,
@@ -14,6 +16,7 @@ def orphan_tip_finder(
     sqs_queue_name="None",
     save_df=False,
     save_nvq=False,
+    apply_smoothing=False,
 ):
     datastack_name = "minnie65_phase3_v1"
     client = CAVEclient(datastack_name)
@@ -29,6 +32,11 @@ def orphan_tip_finder(
     mesh = mesh[int(root_id)]
     n_faces = mesh.faces.shape[0]
     mesh_obj = trimesh.Trimesh(mesh.vertices, mesh.faces, mesh.normals)
+
+    if apply_smoothing:
+        smoothing_engine = Smoothing(mesh_obj)
+        smoothing_engine.bilaplacian_smoothing(inplace=True)
+
     decimated = trimesh.Trimesh.simplify_quadratic_decimation(
         mesh_obj, n_faces * decimation_level
     )
@@ -39,12 +47,14 @@ def orphan_tip_finder(
     largest_component = np.bincount(edges_by_component).argmax()
     largest_component_size = np.sum(edges_by_component == largest_component)
 
-    # cc = trimesh.graph.connected_components(decimated.face_adjacency, min_len=largest_component_size-1)
+    cc = trimesh.graph.connected_components(
+        decimated.face_adjacency, min_len=largest_component_size - 1
+    )
     # cc2 = trimesh.graph.connected_components(decimated.face_adjacency)
 
     mask = np.zeros(len(decimated.faces), dtype=bool)
 
-    #  mask[np.concatenate(cc)] = True
+    mask[np.concatenate(cc)] = True
 
     decimated.update_faces(mask)
     skel = skeletonize.skeletonize_mesh(
@@ -68,5 +78,4 @@ def orphan_tip_finder(
 
 if __name__ == "__main__":
     t1, skel, mesh_obj = orphan_tip_finder(864691136700953198)
-    cs_g = skel.csgraph_undirected
-    print(cs_g[0][0])
+    print(skel)
