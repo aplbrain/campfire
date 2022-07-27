@@ -1,7 +1,6 @@
 from caveclient import CAVEclient
 from cloudvolume import CloudVolume
 import copy
-from matplotlib.pyplot import fill
 import numpy as np
 import scipy
 import trimesh
@@ -117,7 +116,9 @@ class Smoothing:
             )
             mesh_obj = vol.mesh.get(str(mesh))
             mesh_obj = mesh_obj[int(mesh)]
-            self.mesh = trimesh.Trimesh(mesh_obj.vertices, mesh_obj.faces, mesh_obj.normals)
+            self.mesh = trimesh.Trimesh(
+                mesh_obj.vertices, mesh_obj.faces, mesh_obj.normals
+            )
         else:
             self.mesh = mesh
 
@@ -158,12 +159,29 @@ class Smoothing:
             return new_mesh
 
     def bilaplacian_smoothing(
-        self, shrink=0.15, smooth=0.75, smoothing_passes=20, inplace=False
+        self,
+        shrink: float = 0.0,
+        smooth: float = 0.75,
+        smoothing_passes: int = 20,
+        inplace: bool = False,
     ):
         """
         New smoothing tech based on extended Laplacian methods. Pushes any modified points
         produced by Laplacian method back to previous points or and/or original points
         based on average of their differences.
+
+        Parameters
+        ----------
+        shrink: float -> Value from 0 to 1 representing the strength of anti-shrinkage
+        algorithm. 1 is full strength, 0 allows thin processes to be shrunk down more.
+
+        smooth: float -> value from 0 to 1 representing how aggressively meshes will be
+        smoothed into Cartesianly optimal representations.
+
+        smoothing_passes: int -> integer representing number of passes of smoothing algorithm
+
+        inplace: bool -> boolean representing whether to return a new Trimesh object as the smoothed
+        result or to smooth the original mesh Smoothing was instantiated with.
         """
         vertices = np.asarray(self.vertices)
         static_vertices = vertices.copy()
