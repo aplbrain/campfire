@@ -1,4 +1,7 @@
+from caveclient import CAVEclient
+from cloudvolume import CloudVolume
 import copy
+from matplotlib.pyplot import fill
 import numpy as np
 import scipy
 import trimesh
@@ -100,17 +103,33 @@ def base_laplacian(mesh, use_inverse=False, static_nodes=[]):
 
 
 class Smoothing:
-    def __init__(self, mesh):
-        self.mesh = mesh
+    def __init__(self, mesh, datastack="minnie65_phase3_v1"):
+        if isinstance(mesh, str) or isinstance(mesh, int):
+            client = CAVEclient(datastack)
+            vol = CloudVolume(
+                client.info.segmentation_source(),
+                bounded=False,
+                fill_missing=True,
+                parallel=True,
+                progress=False,
+                use_https=True,
+                secrets={"token": client.auth.token},
+            )
+            mesh_obj = vol.mesh.get(str(mesh))
+            mesh_obj = mesh_obj[int(mesh)]
+            self.mesh = trimesh.Trimesh(mesh_obj.vertices, mesh_obj.faces, mesh_obj.normals)
+        else:
+            self.mesh = mesh
+
         try:
-            self.laplacian_sparse_coo = base_laplacian(mesh)
-            self.volume = mesh.volume
-            self.vertices = mesh.vertices
-            self.faces = mesh.faces
+            self.laplacian_sparse_coo = base_laplacian(self.mesh)
+            self.volume = self.mesh.volume
+            self.vertices = self.mesh.vertices
+            self.faces = self.mesh.faces
             # Downstream validity checks
-            mesh.vertex_neighbors
-            mesh.faces
-            mesh.face_normals
+            self.mesh.vertex_neighbors
+            self.mesh.faces
+            self.mesh.face_normals
         except:
             raise AttributeError("Mesh object lacks necessary attributes")
 
