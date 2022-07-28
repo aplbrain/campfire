@@ -9,33 +9,26 @@ from orphan_mesh import Smoothing
 
 def orphan_tip_finder(
     root_id,
-    decimation_level=0.05,
+    decimation_level=0.5,
     nucleus_id=None,
     time=None,
     pt_position=None,
     sqs_queue_name="None",
     save_df=False,
     save_nvq=False,
-    apply_smoothing=False,
+    inval_d=5000,
+    num_smoothing_iters=20,
+    decimation_factor=0.5,
+    apply_smoothing=True,
 ):
-    datastack_name = "minnie65_phase3_v1"
-    client = CAVEclient(datastack_name)
-    vol = CloudVolume(
-        client.info.segmentation_source(),
-        use_https=True,
-        progress=False,
-        bounded=False,
-        fill_missing=True,
-        secrets={"token": client.auth.token},
-    )
-    mesh = vol.mesh.get(str(root_id))
-    mesh = mesh[int(root_id)]
-    n_faces = mesh.faces.shape[0]
-    mesh_obj = trimesh.Trimesh(mesh.vertices, mesh.faces, mesh.normals)
-
+    smoothing_engine = Smoothing(root_id)
+    n_faces = smoothing_engine.faces.shape[0]
     if apply_smoothing:
-        smoothing_engine = Smoothing(mesh_obj)
-        smoothing_engine.bilaplacian_smoothing(inplace=True)
+        mesh_obj = smoothing_engine.bilaplacian_smoothing(
+            smoothing_passes=num_smoothing_iters, smooth=decimation_factor
+        )
+    else:
+        mesh_obj - smoothing_engine.mesh
 
     decimated = trimesh.Trimesh.simplify_quadratic_decimation(
         mesh_obj, n_faces * decimation_level
@@ -50,6 +43,7 @@ def orphan_tip_finder(
     cc = trimesh.graph.connected_components(
         decimated.face_adjacency, min_len=largest_component_size - 1
     )
+
     # cc2 = trimesh.graph.connected_components(decimated.face_adjacency)
 
     mask = np.zeros(len(decimated.faces), dtype=bool)
@@ -58,7 +52,7 @@ def orphan_tip_finder(
 
     decimated.update_faces(mask)
     skel = skeletonize.skeletonize_mesh(
-        trimesh_io.Mesh(decimated.vertices, decimated.faces)
+        trimesh_io.Mesh(decimated.vertices, decimated.faces), invalidation_d=inval_d
     )
 
     degree_dict = {}
@@ -77,5 +71,6 @@ def orphan_tip_finder(
 
 
 if __name__ == "__main__":
-    t1, skel, mesh_obj = orphan_tip_finder(864691136700953198)
+    t1, skel, mesh_obj = orphan_tip_finder(864691136020754778)
+    # WORKING SEG ID: 864691136700953198
     print(skel)
