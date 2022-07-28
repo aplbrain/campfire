@@ -28,7 +28,7 @@ def orphan_tip_finder(
             smoothing_passes=num_smoothing_iters, smooth=decimation_factor
         )
     else:
-        mesh_obj - smoothing_engine.mesh
+        mesh_obj = smoothing_engine.mesh
 
     decimated = trimesh.Trimesh.simplify_quadratic_decimation(
         mesh_obj, n_faces * decimation_level
