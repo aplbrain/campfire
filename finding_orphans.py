@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 from orphan_extension.utils.cast_to_bounds import cast_points_within_bounds
 from orphan_extension.utils.multi_loader import multi_proc_type, multi_soma_count
-from tip_finding import tip_finding
+import tip_finding
 
 
 class OrphanError(Exception):
