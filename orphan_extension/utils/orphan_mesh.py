@@ -101,6 +101,26 @@ def base_laplacian(mesh, use_inverse=False, static_nodes=[]):
     return matrix
 
 
+def bilaplacian(mesh, shrink=0.0, smooth=0.75, iterations=50, inplace=False):
+    operator = base_laplacian(mesh)
+    vertices = mesh.vertices.copy().view(np.ndarray)
+    static_vertices = vertices.copy()
+
+    for _ in range(iterations):
+        vertex_q_i = vertices.copy()
+        vertices = operator.dot(vertices)
+        vertex_b_i = vertices - (shrink * static_vertices + (1.0 - shrink) * vertex_q_i)
+        vertices -= smooth * vertex_b_i + (1.0 - smooth) * operator.dot(vertex_b_i)
+
+    if inplace:
+        mesh.vertices = vertices
+
+    else:
+        new_mesh = copy.deepcopy(mesh)
+        new_mesh.vertices = vertices
+        return new_mesh
+
+
 class Smoothing:
     def __init__(self, mesh, datastack="minnie65_phase3_v1"):
         if isinstance(mesh, str) or isinstance(mesh, int):
@@ -138,7 +158,7 @@ class Smoothing:
         """
         Original Laplacian smoothing algorithm ported to Python.
         """
-        vertices = np.asarray(self.vertices)
+        vertices = self.vertices.copy().view(np.ndarray)
         faces = np.asarray(self.faces)
 
         for _ in range(smoothing_passes):
