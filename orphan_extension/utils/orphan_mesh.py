@@ -110,7 +110,7 @@ def bilaplacian(mesh, shrink=0.0, smooth=0.75, iterations=50, inplace=False):
         vertex_q_i = vertices.copy()
         vertices = operator.dot(vertices)
         vertex_b_i = vertices - (shrink * static_vertices + (1.0 - shrink) * vertex_q_i)
-        vertices -= smooth * vertex_b_i + (1.0 - smooth) * operator.dot(vertex_b_i)
+        vertices -= (smooth * vertex_b_i + (1.0 - smooth) * operator.dot(vertex_b_i))
 
     if inplace:
         mesh.vertices = vertices
