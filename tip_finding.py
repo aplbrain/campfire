@@ -4,6 +4,7 @@ from caveclient import CAVEclient
 import trimesh
 import numpy as np
 from orphan_extension.utils.orphan_mesh import Smoothing
+from orphan_extension.utils.orphan_mesh import bilaplacian
 
 
 def tip_finder_decimation(
@@ -18,7 +19,7 @@ def tip_finder_decimation(
     num_humfrey_iters=50,
     decimation_factor=0.5,
     cube_side_len=750,
-    num_laplacian_iters=20
+    num_laplacian_iters=20,
 ):
     datastack_name = "minnie65_phase3_v1"
     client = CAVEclient(datastack_name)
@@ -35,9 +36,9 @@ def tip_finder_decimation(
     n_faces = mesh.faces.shape[0]
     mesh_obj = trimesh.Trimesh(mesh.vertices, mesh.faces, mesh.normals)
 
-    # test with humphrey
-    mesh_obj = trimesh.smoothing.filter_humphrey(
-        mesh_obj, iterations=num_humfrey_iters)
+    # # test with humphrey
+    # mesh_obj = trimesh.smoothing.filter_humphrey(
+    #     mesh_obj, iterations=num_humfrey_iters)
 
     # Voxelization
     # mesh_obj = mesh_obj.voxelized(cube_side_len)
@@ -68,8 +69,11 @@ def tip_finder_decimation(
     # test with laplacian
     # mesh_obj = trimesh.smoothing.filter_laplacian(mesh_obj, iterations=50)
 
+    bilaplacian(mesh_obj, iterations=num_laplacian_iters, inplace=True)
+
     decimated = trimesh.Trimesh.simplify_quadratic_decimation(
-        mesh_obj, n_faces * decimation_factor)
+        mesh_obj, n_faces * decimation_factor
+    )
 
     edges_by_component = trimesh.graph.connected_component_labels(
         decimated.face_adjacency
