@@ -18,14 +18,13 @@ def orphan_tip_finder(
     save_nvq=False,
     inval_d=5000,
     num_smoothing_iters=20,
-    decimation_factor=0.5,
     apply_smoothing=True,
 ):
     smoothing_engine = Smoothing(root_id)
     n_faces = smoothing_engine.faces.shape[0]
     if apply_smoothing:
         mesh_obj = smoothing_engine.bilaplacian_smoothing(
-            smoothing_passes=num_smoothing_iters, smooth=decimation_factor
+            smoothing_passes=num_smoothing_iters
         )
     else:
         mesh_obj = smoothing_engine.mesh

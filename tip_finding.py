@@ -94,9 +94,9 @@ def tip_finder_decimation(
     skel = skeletonize.skeletonize_mesh(
         trimesh_io.Mesh(decimated.vertices, decimated.faces), invalidation_d=inval_d
     )
-    print(type(decimated))
-    print()
-    print(decimated)
+    # print(type(decimated))
+    # print()
+    # print(decimated)
 
     skel = skeletonize.skeletonize_mesh(
         trimesh_io.Mesh(mesh_obj.vertices, mesh_obj.faces), invalidation_d=inval_d
