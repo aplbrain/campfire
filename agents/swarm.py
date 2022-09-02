@@ -88,7 +88,7 @@ class Swarm:
         # self.agent_adjacency = {seg_id:i for(seg_id, i) in enumerate(np.unique(self.data))}
         self.id_map = {}
         self.agents = []
-        self._count = 1
+        self._count = 0
         # Populate the list of agents if empty Agents are requested
         # Don't need to check if I am spawning on a membrane
         # Think about about writing out positions to file using sqlite
