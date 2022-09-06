@@ -1,226 +1,148 @@
-from caveclient import CAVEclient
-import pickle
+from curses import meta
+import pandas as pd
 import numpy as np
-from agents import data_loader
-from cloudvolume import CloudVolume
-from membrane_detection import membranes
-import agents.sensor
-import agents.scripts as scripts
-from agents.run import run_agents
+from tip_finding.tip_finding import endpoints_from_rid
+from extension import Extension as Ext
+import time
 import aws.sqs as sqs
 import sys
-import time
 
-def drive(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',
-          cnn_weights='thick',filter_merge=True,delete=True, endp=(0,0,0), nucleus_id=0, root_id=0, time_point=0):
+def endpoints(queue_url_rid, save='nvq', delete=False):
+    root_id_msg = sqs.get_job_from_queue(queue_url_rid)
+    root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
+    tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip  = endpoints_from_rid(root_id)
+    if delete:
+        root_id_msg.delete()
+    if save == 'sqs':
+        queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
 
-    vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-    resolution = [int(x) for x in resolution]
-    radius = [int(x) for x in radius]
-    unet_bound_mult = float(unet_bound_mult)
-    unet_bound = [int(x*float(unet_bound_mult)) for x in radius]
-    n = int(n)
-    ep_param = ep
+        entries=sqs.construct_endpoint_entries(tips_thick, root_id)
+        while(len(entries) > 0):
+            entries_send = entries[:10]
+            entries = entries[10:]
+            sqs.send_batch(queue_url_endpoints, entries_send)
+    elif save == 'nvq':
+        import datetime
+        import neuvueclient as Client
+        time_point = datetime.datetime.now()
+
+        metadata = {'time':str(time_point), 
+                    'root_id':root_id,
+                    }
+        C = Client.NeuvueQueue("https://queue.neuvue.io")
+        for pt in tips_thick:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_thick', 0, metadata, True)
+        for pt in tips_thin:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_thin', 0, metadata, True)
+        for pt in thru_branch_tips:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_branch', 0, metadata, True)
+        for pt in tip_no_flat_thick:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'tip_thick', 0, metadata, True)
+        for pt in tip_no_flat_thin:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'tip_thin', 0, metadata, True)
+        for pt in flat_no_tip:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'errorloc', 0, metadata, True)
+    return tips_thick 
+
+def run_endpoints(end, save='nvq', delete=False):
+    print(end, save, delete, "SDg")
+    sdfs
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
+    n_root_id = 0
+    while n_root_id < end or end == -1:
+        endpoints(queue_url_rid, save, delete)
+        n_root_id+=1
+    return 1
+
+def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
+                   nucleus_id=0, time_point=0, threshold=8):
+    hit_ids = [root_id]
+    current_root_id = root_id
     
-    tic1=time.time()
-    if ep_param == 'sqs':
-        queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
-        ep_msg = sqs.get_job_from_queue(queue_url_endpts)
-        root_id = int(ep_msg.message_attributes['root_id']['StringValue'])
-        nucleus_id = int(ep_msg.message_attributes['nucleus_id']['StringValue'])
-        time_point = int(ep_msg.message_attributes['time']['StringValue'])
-        ep = [float(p) for p in ep_msg.body.split(',')]
-        print(root_id, nucleus_id, ep)
-        if delete:
-            ep_msg.delete()
-    else:
-        root_id = root_id
-        nucleus_id = nucleus_id
-        time_point = time_point
-        ep = [float(p) for p in endp]
-    endpoint = np.divide(ep, resolution).astype('int')
-    precomp_file_path = f"./precompute_{root_id}_{endpoint}"
-    bound  = (endpoint[0] - radius[0], 
-                endpoint[0] + radius[0],
-                endpoint[1] - radius[1],
-                endpoint[1] + radius[1],
-                endpoint[2] - radius[2],
-                endpoint[2] + radius[2])
+    merges = pd.DataFrame()
+    ext = Ext(root_id, resolution, radius, unet_bound_mult, 
+              device, save, nucleus_id, time_point)
 
-    bound_EM  = (endpoint[0] - unet_bound[0], 
-                endpoint[0] + unet_bound[0],
-                endpoint[1] - unet_bound[1],
-                endpoint[1] + unet_bound[1],
-                endpoint[2] - radius[2],
-                endpoint[2] + radius[2])
-    seg = np.squeeze(data_loader.get_seg(*bound))
-    tic = time.time()
-
-    vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-    try:
-        em = np.squeeze(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3], bound_EM[4]:bound_EM[5]])
-    except OutOfBoundsError:
-        print("OOB")
-
-    errors_shift, errors_zero = scripts.shift_detect(em, 100, 1, 1, 10)
-
-    if cnn_weights == 'thick':
-        mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/best_metric_model_segmentation2d_dict.pth", device_s=device)
-    elif cnn_weights == 'thin':
-        mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/model_CREMI_2D.pth", device_s=device)
-    # mem_seg = pickle.load(open("./mem_dump.p", "rb"))
-    mem_seg = scripts.remove_shifts(mem_seg, errors_shift+errors_zero, zero_or_remove='zero')
-
-    mem_to_run = mem_seg[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
-                    int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
-    print(f"Seg time: {time.time() - tic}")
-    tic = time.time()
-
-    compute_vectors = scripts.precompute_membrane_vectors(mem_to_run, mem_to_run, precomp_file_path, 3)
-    print(f"Convolution time: {time.time() - tic}")
-
-    sensor_list = [
-        (agents.sensor.BrownianMotionSensor(), .1),
-        (agents.sensor.PrecomputedSensor(), .2),
-        (agents.sensor.MembraneSensor(mem_to_run), 0),
-        ]
-
-    pos_histories, seg_ids, agent_ids=run_agents(mem=mem_to_run, sensor_list=sensor_list,
-                                                precompute_fn=precomp_file_path+'.npz',
-                                                max_vel=.9,n_steps=250,segmentation=seg,
-                                                root_id=root_id, endpoint_nm=ep)
-    # find merges of agents from root_id
-    pos_matrix, merge_d = scripts.create_post_matrix(pos_histories, seg, mem_to_run.shape, merge=True)
-    merges = scripts.position_merge(ep, root_id, merge_d,  ep)
-#     merges = scripts.merge_paths(pos_histories,seg_ids, ep, root_id, soma, polarities)
-    if merges.shape[0] > 0:
-        client = CAVEclient('minnie65_phase3_v1')
-        #merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
-        seg_ids = [int (x) for x in merges.Extension]
-
-        weights = [int(x) for x in merges.Weight]
-        weights_dict = dict(zip(seg_ids, weights))
-    else:
-        weights_dict = {}
-    if save == "pd":
-        merges.to_csv(f"./merges_{root_id}_{endpoint}.csv")
-    return mem_seg, merges, pos_matrix, seg_ids, em, seg
-
-def visualize_merges(merges_root, seg, root_id):
-    mset = set(merges_root.M1)
-    mset.update(set(merges_root.M2))
-    sum_weight = np.sum(np.asarray(merges_root["Weight"]))
-    seg = np.asarray(seg)
-    opacity_merges = np.zeros_like(seg).astype(float)
-    seg_merge_output = np.zeros_like(seg).astype(float)
-    for i, seg_id in enumerate(mset):
-        if float(seg_id) == float(root_id):
-            opacity_merges[seg == seg_id] = 1
-            seg_merge_output[seg == seg_id] = -1
-            continue
-
-        opacity_merges[seg == seg_id] = merges_root[(merges_root.M1 == seg_id) | (merges_root.M2 == seg_id)]["Weight"] / sum_weight
-        seg_merge_output[seg == seg_id] = i
-    seg_merge_output[seg_merge_output==0]=np.nan
-    return opacity_merges, seg_merge_output
-
-def drive_old(n, radius=(200,200,20), resolution=(8,8,40), unet_bound_mult=2, ep='sqs', save='sqs',device='cpu',filter_merge=True,delete=True):
-    queue_url_endpts = sqs.get_or_create_queue('Endpoints_Test')
-    vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-    resolution = [int(x) for x in resolution]
-    radius = [int(x) for x in radius]
-    unet_bound_mult = float(unet_bound_mult)
-    unet_bound = [int(x*float(unet_bound_mult)) for x in radius]
-    n = int(n)
-    ep_param = ep
-    if n == -1:
-        n = int(1e10)
-    for _ in range(n):
-        print(_)
-        tic1=time.time()
-        if ep_param == 'sqs':
-            ep_msg = sqs.get_job_from_queue(queue_url_endpts)
-            root_id = int(ep_msg.message_attributes['root_id']['StringValue'])
-            nucleus_id = int(ep_msg.message_attributes['nucleus_id']['StringValue'])
-            time_point = int(ep_msg.message_attributes['time']['StringValue'])
-            ep = [float(p) for p in ep_msg.body.split(',')]
-            print(root_id, nucleus_id, ep)
-            if delete:
-                ep_msg.delete()
-        endpoint = np.divide(ep, resolution).astype('int')
-        precomp_file_path = f"./precompute_{root_id}_{endpoint}"
-        bound  = (endpoint[0] - radius[0], 
-                    endpoint[0] + radius[0],
-                    endpoint[1] - radius[1],
-                    endpoint[1] + radius[1],
-                    endpoint[2] - radius[2],
-                    endpoint[2] + radius[2])
-        
-        bound_EM  = (endpoint[0] - unet_bound[0], 
-                    endpoint[0] + unet_bound[0],
-                    endpoint[1] - unet_bound[1],
-                    endpoint[1] + unet_bound[1],
-                    endpoint[2] - radius[2],
-                    endpoint[2] + radius[2])
-        seg = np.squeeze(data_loader.get_seg(*bound))
-        tic = time.time()
-        
-        vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
+    while True:
         try:
-            em = np.squeeze(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3], bound_EM[4]:bound_EM[5]])
-        except OutOfBoundsError:
+            endpoint = endpoints.pop()
+        except IndexError:
+            merges.to_csv("./merges_series")
+            return merges
+        success = ext.gen_membranes(endpoint)
+        ext.run_agents()
+        initial_merges = ext.merges
+        merges = pd.concat([merges, initial_merges])
+        initial_merges = initial_merges[initial_merges.Weight > threshold]
+        initial_merges = initial_merges[initial_merges.Synapse_filter == False]
+        initial_merges = initial_merges[initial_merges.Polarity_filter == False]
+        initial_merges = initial_merges[np.logical_not(initial_merges.Extension.isin(hit_ids))]
+
+        if initial_merges.shape[0] == 0:
+            return
+        highest_val = initial_merges.sort_values('Weight', ascending=False).iloc[0]
+        current_root_id = highest_val.Extension
+        hit_ids.append(current_root_id)
+        next_endpoints = tip_finder_decimation(hit_ids)
+        for ep in next_endpoints:
+            endpoints.append(ep)
+
+def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
+                   nucleus_id=0, time_point=0, threshold=8):
+    ct=0
+    gt_df = pd.read_csv("./matching_master.csv")
+    merges = pd.DataFrame()
+    print("Unique Ids",gt_df.R.unique())
+    for root_id in gt_df.R.unique():
+        if root_id == 864691136577830164 or root_id == 864691135683615218:
+            print("Skipping",root_id)
             continue
-        mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/best_metric_model_segmentation2d_dict.pth", device_s=device)
-        mem_to_run = mem_seg[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
-                        int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
-        print(f"Seg time: {time.time() - tic}")
-        tic = time.time()
+        filt_df = gt_df[gt_df.R == root_id]
+        print("Shape", filt_df.shape[0])
+        for i in range(filt_df.shape[0]):
+            tic = time.time()
+            row = filt_df.iloc[i]
+            endpoint = eval(row.G1)
+            print("Point", i, ct, root_id, endpoint)
+            ext = Ext(root_id, resolution, radius, unet_bound_mult, 
+            device, save, nucleus_id, time_point, endpoint)
+            toc = time.time()
+            print("Ext Time", toc-tic)
+            ext.get_bounds(endpoint)
+            tic = time.time()
+            print("Bounds Time", tic-toc)
+            success = ext.gen_membranes(restitch_gaps=True, restitch_linear=True)
+            toc = time.time()
+            print("Membranes Time", toc-tic)
 
-        compute_vectors = precompute_membrane_vectors(mem_to_run, mem_to_run, precomp_file_path, 3)
-        print(f"Convolution time: {time.time() - tic}")
+            if success < 0:
+                print("Errored out")
+                ext.merges = pd.DataFrame({"Error": "Error"}, index=[0])
+                ext.weights_dict = {}
+                ext.mem_seg = 0
+                ext.n_errors = 61
+                ext.save_agent_merges()
+                ct+=1
+                continue
+            ext.run_agents(nsteps=1000)
+            initial_merges = ext.merges
+            initial_merges.to_csv(f"merges_{root_id}_{row.G1}.csv")
+            merges = pd.concat([merges, initial_merges])
+            ext.save_agent_merges()
+            ct+=1
 
-        sensor_list = [
-            (agents.sensor.BrownianMotionSensor(), .1),
-            (agents.sensor.PrecomputedSensor(), .2),
-            (agents.sensor.MembraneSensor(mem_to_run), 0),
-            ]
-        
-        pos_histories, seg_ids, agent_ids, soma, polarities=run_agents(mem=mem_to_run, sensor_list=sensor_list,
-                                                    precompute_fn=precomp_file_path+'.npz',
-                                                    max_vel=.9,n_steps=10000,segmentation=seg, root_id=root_id)
-        # find merges of agents from root_id
-        pos_matrix = create_post_matrix(pos_histories, mem_to_run.shape, soma, polarities)
-        merges = merge_paths(pos_histories,seg_ids, ep, root_id)
-        # if filter_merge:
-        #     for key in merges:
-        if merges.shape[0] > 0:
-            client = CAVEclient('minnie65_phase3_v1')
-            #merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
-            for seg_id in merges.seg_id.unique():
-                # Double check
-                if get_soma(seg_id, client) > 0:
-                    print("FOUND SOMA in DOUBLE CHECK")
-                    merges = merges[merges.seg_id != seg_id]
-            seg_ids = [int (x) for x in merges.seg_id]
-            
-            weights = [int(x) for x in merges.Weight]
-            weights_dict = dict(zip(seg_ids, weights))
-        else:
-            weights_dict = {}
-        if save == "pd":
-            merges.to_csv(f"./merges_{root_id}_{endpoint}.csv")
-        if save == "nvq":
-            import neuvueclient as Client
-            duration = time.time()-tic1
-            print("DURATION", duration, root_id, endpoint, "\n")
-            metadata = {'time':str(time_point), 'duration':str(duration), 'device':device,'bbox':[str(x) for x in bound], 'bbox_em':[str(x) for x in bound_EM]}
-            C = Client.NeuvueQueue("https://queue.neuvue.io")
-            end = [str(x) for x in endpoint]
-            print(str(root_id), str(nucleus_id), end, weights_dict, metadata)
-            C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata)
-            
-            vol = array("bossdb://microns/minnie65_8x8x40/membranes", axis_order="XYZ")
-            pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
+def sqs_agents(radius=(200,200,20), delete=False):
+    root_id, nucleus_id, time_point, endp = utils.get_endpoint('sqs', delete, endp, root_id, nucleus_id, time_point)
+    merges = drive()
 
-            pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
-            vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]] = mem_seg.astype(np.uint64)
+if __name__ == "__main__":
+    # Wraps the command line arguments
+    mode = sys.argv[1]
+
+    if mode == 'tips':
+        end = int(sys.argv[2])
+        save = sys.argv[3]
+        delete = bool(sys.argv[4])
+        run_endpoints(end, save, delete)
+    if mode == 'agents':
+        segment_gt_points()

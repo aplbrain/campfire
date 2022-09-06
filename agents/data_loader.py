@@ -1,5 +1,7 @@
 from cloudvolume import CloudVolume
 from caveclient import CAVEclient
+import numpy as np
+import datetime
 
 def get_em(x_pre, x_post, y_pre, y_post, z_pre, z_post):
     em = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
@@ -17,8 +19,15 @@ def supervoxels(x_pre, x_post, y_pre, y_post, z_pre, z_post, simplify_supervoxel
     cave_client = CAVEclient('minnie65_phase3_v1')
     sv_ids = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/ws", use_https=True, mip=0)
     sv_ids = sv_ids[x_pre:x_post, y_pre:y_post, z_pre:z_post]
-    for sv_id in sv_ids.unique():
-        sv_ids[sv_ids==sv_id] = cave_client.chunkedgraph.get_root_id(supervoxel_id=sv_id)
+    
+    sv_ids = np.asarray(np.squeeze(sv_ids))
+    if simplify_supervoxels:
+        unique_sv_ids, inv = np.unique(sv_ids,return_inverse = True)
+
+        segs = cave_client.chunkedgraph.get_roots(supervoxel_ids=unique_sv_ids, timestamp = datetime.datetime(2022, 4, 29))
+        seg_dict = dict(zip(unique_sv_ids, segs))
+
+        sv_ids = np.array([seg_dict[x] for x in unique_sv_ids])[inv].reshape(sv_ids.shape)
 
     return sv_ids
 
