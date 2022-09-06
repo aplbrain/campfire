@@ -327,7 +327,8 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
         em, seg, mem_seg = scripts.sofima_stitch(em, warp_scale=1.1, 
                                                    patch_size=150, stride=75, 
                                                    others_to_transform=[seg, mem_seg])
-
+        mem_seg[512] = 1
+        mem_seg[:, 512] =1
     else:
         errors_zero_template = {}
 

@@ -1,24 +1,59 @@
+from curses import meta
 import pandas as pd
 import numpy as np
 from tip_finding.tip_finding import endpoints_from_rid
 from extension import Extension as Ext
 import time
 import aws.sqs as sqs
+import sys
 
-def endpoints_sqs(root_id):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
+def endpoints(queue_url_rid, save='nvq', delete=False):
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
-    eps = endpoints_from_rid(root_id)
-    queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
+    tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip  = endpoints_from_rid(root_id)
+    if delete:
+        root_id_msg.delete()
+    if save == 'sqs':
+        queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
 
-    entries=sqs.construct_endpoint_entries(eps, root_id)
-    while(len(entries) > 0):
-        entries_send = entries[:10]
-        entries = entries[10:]
-        sqs.send_batch(queue_url_endpoints, entries_send)
-    return eps 
-    
+        entries=sqs.construct_endpoint_entries(tips_thick, root_id)
+        while(len(entries) > 0):
+            entries_send = entries[:10]
+            entries = entries[10:]
+            sqs.send_batch(queue_url_endpoints, entries_send)
+    elif save == 'nvq':
+        import datetime
+        import neuvueclient as Client
+        time_point = datetime.datetime.now()
+
+        metadata = {'time':str(time_point), 
+                    'root_id':root_id,
+                    }
+        C = Client.NeuvueQueue("https://queue.neuvue.io")
+        for pt in tips_thick:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_thick', 0, metadata, True)
+        for pt in tips_thin:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_thin', 0, metadata, True)
+        for pt in thru_branch_tips:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_branch', 0, metadata, True)
+        for pt in tip_no_flat_thick:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'tip_thick', 0, metadata, True)
+        for pt in tip_no_flat_thin:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'tip_thin', 0, metadata, True)
+        for pt in flat_no_tip:
+            C.post_point(list(pt), 'Justin', 'Tip_detection', 'errorloc', 0, metadata, True)
+    return tips_thick 
+
+def run_endpoints(end, save='nvq', delete=False):
+    print(end, save, delete, "SDg")
+    sdfs
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
+    n_root_id = 0
+    while n_root_id < end or end == -1:
+        endpoints(queue_url_rid, save, delete)
+        n_root_id+=1
+    return 1
+
 def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, threshold=8):
     hit_ids = [root_id]
@@ -101,4 +136,13 @@ def sqs_agents(radius=(200,200,20), delete=False):
     merges = drive()
 
 if __name__ == "__main__":
-    segment_gt_points()
+    # Wraps the command line arguments
+    mode = sys.argv[1]
+
+    if mode == 'tips':
+        end = int(sys.argv[2])
+        save = sys.argv[3]
+        delete = bool(sys.argv[4])
+        run_endpoints(end, save, delete)
+    if mode == 'agents':
+        segment_gt_points()

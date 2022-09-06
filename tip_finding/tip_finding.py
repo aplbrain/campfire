@@ -543,16 +543,17 @@ def get_flat_regions(mesh, minsize=100000, t=1, n_iter=6):
     
     return sums_mask, locs, sums, graphs, normals
 
-import fill_voids
-import cc3d
 def connected_faces(m, connectivity = 6):
+    import cc3d
+
     m_faces = m.copy()
     m_faces[1:m.shape[0]-1, 1:m.shape[1]-1, 1:m.shape[2]-1] = 0
     labels_out = cc3d.connected_components(m_faces, connectivity=connectivity)
     return labels_out
 
 def fill_faces(m):
-    
+    import fill_voids
+
     m[0] = fill_voids.fill(m[0]).astype(int)
     m[-1] = fill_voids.fill(m[-1]).astype(int)
 
@@ -565,6 +566,7 @@ def fill_faces(m):
     return m
 
 def get_largest_component(m):
+    import cc3d
     labels_out = cc3d.largest_k(m, k=1, connectivity=26, delta=0)
     m = np.multiply(m, labels_out.T)
     return m
@@ -813,7 +815,6 @@ def get_endpoints(mesh, center=None, invalidation=3000, len_thresh=6000, rad_thr
     tip_no_flat_thick = eps[(hit_tips == path_dist_to_tip) * thick_mask]
     tip_no_flat_thin = eps[(hit_tips == path_dist_to_tip) * ~thick_mask]
     
-
     flat_tip_branch = np.array(flat_tip_branch)
     # flat_tip_agree = np.array(list(flat_tip_agree.values()))
     flat_tip_agree_thick = np.array(list(flat_tip_agree_thick.values()))
