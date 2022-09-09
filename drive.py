@@ -1,8 +1,6 @@
-from curses import meta
 import pandas as pd
 import numpy as np
 from tip_finding.tip_finding import endpoints_from_rid
-from extension import Extension as Ext
 import time
 import aws.sqs as sqs
 import sys
@@ -46,7 +44,7 @@ def endpoints(queue_url_rid, save='nvq', delete=False):
 
 def run_endpoints(end, save='nvq', delete=False):
     print(end, save, delete, "SDg")
-    sdfs
+    # sdfs
     queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
     n_root_id = 0
     while n_root_id < end or end == -1:
@@ -56,6 +54,7 @@ def run_endpoints(end, save='nvq', delete=False):
 
 def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, threshold=8):
+    from extension import Extension as Ext
     hit_ids = [root_id]
     current_root_id = root_id
     
@@ -89,6 +88,8 @@ def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), 
 
 def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, threshold=8):
+    from extension import Extension as Ext
+
     ct=0
     gt_df = pd.read_csv("./matching_master.csv")
     merges = pd.DataFrame()
