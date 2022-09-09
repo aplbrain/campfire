@@ -2,7 +2,7 @@ from curses import meta
 import pandas as pd
 import numpy as np
 from tip_finding.tip_finding import endpoints_from_rid
-from extension import Extension as Ext
+
 import time
 import aws.sqs as sqs
 import sys
@@ -27,26 +27,28 @@ def endpoints(queue_url_rid, save='nvq', delete=False):
         time_point = datetime.datetime.now()
 
         metadata = {'time':str(time_point), 
-                    'root_id':root_id,
+                    'root_id':str(root_id),
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
-        for pt in tips_thick:
-            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_thick', 0, metadata, True)
-        for pt in tips_thin:
-            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_thin', 0, metadata, True)
-        for pt in thru_branch_tips:
-            C.post_point(list(pt), 'Justin', 'Tip_detection', 'error_tip_branch', 0, metadata, True)
-        for pt in tip_no_flat_thick:
-            C.post_point(list(pt), 'Justin', 'Tip_detection', 'tip_thick', 0, metadata, True)
-        for pt in tip_no_flat_thin:
-            C.post_point(list(pt), 'Justin', 'Tip_detection', 'tip_thin', 0, metadata, True)
-        for pt in flat_no_tip:
-            C.post_point(list(pt), 'Justin', 'Tip_detection', 'errorloc', 0, metadata, True)
+        def nvc_post_point(points, author, namespace, name, status, metadata):
+            if len(points.shape) == 1:
+                C.post_point([str(p) for p in points], author, namespace, name, status, metadata)
+            elif len(points.shape) == 0:
+                return 0
+            else:
+                for pt in points:
+                    C.post_point([str(p) for p in pt], author, namespace, name, status, metadata)
+            return 1
+        nvc_post_point(tips_thick, "Justin", "Tip_detection", "error_tip_thick", 0, metadata)
+        nvc_post_point(tips_thin, "Justin", "Tip_detection", "error_tip_thin", 0, metadata)
+        nvc_post_point(thru_branch_tips, "Justin", "Tip_detection", "error_tip_branch", 0, metadata)
+        nvc_post_point(tip_no_flat_thick, "Justin", "Tip_detection", "tip_thick", 0, metadata)
+        nvc_post_point(tips_no_flat_thin, "Justin", "Tip_detection", "tip_thin", 0, metadata)
+        nvc_post_point(flat_no_tip, "Justin", "Tip_detection", "errorloc", 0, metadata)
+        
     return tips_thick 
 
 def run_endpoints(end, save='nvq', delete=False):
-    print(end, save, delete, "SDg")
-    sdfs
     queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
     n_root_id = 0
     while n_root_id < end or end == -1:
@@ -54,8 +56,9 @@ def run_endpoints(end, save='nvq', delete=False):
         n_root_id+=1
     return 1
 
-def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
-                   nucleus_id=0, time_point=0, threshold=8):
+def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu', nucleus_id=0, time_point=0, threshold=8):
+    from extension import Extension as Ext
+
     hit_ids = [root_id]
     current_root_id = root_id
     
