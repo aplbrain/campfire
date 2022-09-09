@@ -307,7 +307,6 @@ def voxel_skel(mesh, vox_n=300, soma_radius=10000, invalidation_d=10000, smooth_
 
     return skel, np.squeeze(points)
 
-from meshparty import trimesh_vtk
 from tqdm import tqdm
 
 def viewer(mesh=None, gt=None, graphs=None, graphs_mask=None, other_points = [], gt_res=np.array([4,4,40])):
