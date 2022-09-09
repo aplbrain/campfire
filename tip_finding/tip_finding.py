@@ -7,8 +7,7 @@ import numpy as np
 import datetime
 import networkx as nx
 from trimesh.voxel import creation as make_voxels
-from scipy.interpolate import UnivariateSpline
-from scipy.ndimage import binary_fill_holes
+
 
 def get_skel(root_id):
     datastack_name = "minnie65_phase3_v1"
@@ -307,10 +306,10 @@ def voxel_skel(mesh, vox_n=300, soma_radius=10000, invalidation_d=10000, smooth_
 
     return skel, np.squeeze(points)
 
-from meshparty import trimesh_vtk
 from tqdm import tqdm
 
 def viewer(mesh=None, gt=None, graphs=None, graphs_mask=None, other_points = [], gt_res=np.array([4,4,40])):
+    from meshparty import trimesh_vtk
     vis_list = []
     if not mesh == None:
         mesh_actor = trimesh_vtk.mesh_actor(mesh,
@@ -401,6 +400,8 @@ def find_min_val(point, point_array):
     return min_val
 
 def get_voxel_and_spline(mesh_obj, center, radius, side_len=10):
+    from scipy.interpolate import UnivariateSpline
+    from scipy.ndimage import binary_fill_holes
     vox = make_voxels.local_voxelize(mesh_obj, center, side_len, radius)
     m=vox.matrix
 
