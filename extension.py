@@ -15,7 +15,7 @@ from scipy.ndimage.measurements import label
 
 class Extension():
     def __init__(self, root_id, resolution, radius, unet_bound_mult, 
-                 device, save, nucleus_id, time_point, endp):
+                 device, save, nucleus_id, time_point, endp, namespace):
         if type(root_id) == 'list':
             self.root_id = [int(r) for r in root_id]
         else:
@@ -34,7 +34,8 @@ class Extension():
         self.nucleus_id = nucleus_id
         self.time_point = time_point
         self.tic1 = time.time()
-
+        self.namespace=namespace
+        
     def get_bounds(self,endp):
         self.endpoint = np.divide(endp, self.resolution).astype('int')
         self.bound = get_bounds(self.endpoint, self.radius)
@@ -129,7 +130,7 @@ class Extension():
     def save_agent_merges(self):
         duration = time.time()-self.tic1
         save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint*self.resolution,
-                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors)
+                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespsace)
    
     # Create a queue out of any of the above sampling methods
     def create_queue(self, n_pts, sampling_type="extension_only"):
@@ -320,6 +321,7 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
         warp_dict_reg, warp_dict_clean, warp_dict_flow = scripts.get_warp(em, errors_zero_template,
                                                                             patch_size=150,stride=75)
         em, seg, mem_seg = scripts.correct_with_flow(em, warp_dict_reg, alternate=True,stride=75, others_to_transform=[seg, mem_seg])
+    
     else:
         errors_gap = np.zeros(em.shape[2])
 
@@ -335,7 +337,7 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
     return mem_seg, seg, em, errors_gap, errors_zero_template
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
-                bound_EM, mem_seg, device, duration, n_errors):
+                bound_EM, mem_seg, device, duration, n_errors, namespace):
     if type(root_id) == list:
         root_id = root_id[0]
     if save == "pd":
@@ -344,17 +346,18 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
     if save == "nvq":
         import neuvueclient as Client
         print("DURATION", duration, root_id, endpoint, "\n")
-        metadata = {'time':str(time_point), 
+        metadata = {'namespace':namespace,
+                    'time':str(time_point), 
                     'duration':str(duration), 
                     'device':device,
                     'bbox':[str(x) for x in bound], 
                     'bbox_em':[str(x) for x in bound_EM],
-                    'n_errors':error_dict,
+                    'n_errors':n_errors,
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         end = [str(x) for x in endpoint]
         
-        print(str(root_id[0]), str(nucleus_id), end, weights_dict, metadata)
+        print("Posted", str(root_id[0]), str(nucleus_id), end, weights_dict, metadata)
         C.post_agent(str(root_id[0]), str(nucleus_id), end, weights_dict, metadata)
         
         # pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))

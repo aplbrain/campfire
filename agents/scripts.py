@@ -924,7 +924,6 @@ def correct_with_flow(em, warps, stride=25,scale=True, alternate=True, others_to
             if scale:
                 if alternate:
                     alt = i % 2
-                    img_idx = w[alt]
                     warp_indx = w[alt]
                     alt = 1 if alt==0 else -1
                     indx = warp_indices[(i+1)//2 * alt]
