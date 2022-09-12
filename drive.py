@@ -1,3 +1,4 @@
+from logging import root
 import pandas as pd
 import numpy as np
 from tip_finding.tip_finding import endpoints_from_rid
@@ -10,6 +11,7 @@ import backoff
 def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
+    print("RID", root_id)
     tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip  = endpoints_from_rid(root_id)
     if delete:
         root_id_msg.delete()
@@ -30,12 +32,12 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
                     'root_id':str(root_id),
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
-        nvc_post_point(C, tips_thick, "Justin", namespace, "error_tip_thick", 0, metadata)
-        nvc_post_point(C, tips_thin, "Justin", namespace, "error_tip_thin", 0, metadata)
-        nvc_post_point(C, thru_branch_tips, "Justin", namespace, "error_tip_branch", 0, metadata)
-        nvc_post_point(C, tip_no_flat_thick, "Justin", namespace, "tip_thick", 0, metadata)
-        nvc_post_point(C, tip_no_flat_thin, "Justin", namespace, "tip_thin", 0, metadata)
-        nvc_post_point(C, flat_no_tip, "Justin", namespace, "errorloc", 0, metadata)
+        nvc_post_point(C, tips_thick.astype(int), "Justin", namespace, "error_tip_thick", 0, metadata)
+        nvc_post_point(C, tips_thin.astype(int), "Justin", namespace, "error_tip_thin", 0, metadata)
+        nvc_post_point(C, thru_branch_tips.astype(int), "Justin", namespace, "error_tip_branch", 0, metadata)
+        nvc_post_point(C, tip_no_flat_thick.astype(int), "Justin", namespace, "tip_thick", 0, metadata)
+        nvc_post_point(C, tip_no_flat_thin.astype(int), "Justin", namespace, "tip_thin", 0, metadata)
+        nvc_post_point(C, flat_no_tip.astype(int), "Justin", namespace, "errorloc", 0, metadata)
         
     return tips_thick 
 
@@ -63,7 +65,7 @@ def get_points_nvc(filt_dict):
     return C.get_points(filt_dict)
 
 def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
-                   nucleus_id=0, time_point=0, threshold=8, namespace='Agents'='Agents'):
+                   nucleus_id=0, time_point=0, threshold=8, namespace='Agents'):
     
     from extension import Extension as Ext
     ext = Ext(root_id, resolution, radius, unet_bound_mult, 
