@@ -6,12 +6,7 @@ from scipy.ndimage.filters import convolve
 import pandas as pd
 from caveclient import CAVEclient
 import cv2 
-import matplotlib.pyplot as plt
-import numpy as np
-import backoff
-import cv2
 import datetime
-import cc3d
 from sofima.flow_field import JAXMaskedXCorrWithStatsCalculator
 from sofima.flow_utils import clean_flow
 from sofima.warp import ndimage_warp
@@ -164,6 +159,8 @@ def multi_slice_viewer(membranes, positions=None, start_slice=-1):
     :param positions: [Optional] Pointcloud of agent positions
     :return:
     """
+    import matplotlib.pyplot as plt
+
     if positions is None:
         positions = np.zeros_like(membranes)
 
@@ -507,6 +504,8 @@ def trajectory_filter(root_id, seg_ids, seg):
     return angle_dict, angle_list
 
 def calc_seg_gradient(seg_id, seg, rez = np.array([4,4,40])):
+    import cc3d
+
     seg_mask = seg == int(seg_id)
     seg_dilate = cv2.dilate(seg_mask.astype(np.uint8), np.ones((5,5)), iterations=1)
 
