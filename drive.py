@@ -25,7 +25,7 @@ def endpoints(queue_url_rid, save='nvq', delete=False):
         time_point = datetime.datetime.now()
 
         metadata = {'time':str(time_point), 
-                    'root_id':str(root_id),
+                    'root_id':str(864691136577830164),
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         def nvc_post_point(points, author, namespace, name, status, metadata):
@@ -37,12 +37,13 @@ def endpoints(queue_url_rid, save='nvq', delete=False):
                 for pt in points:
                     C.post_point([str(p) for p in pt], author, namespace, name, status, metadata)
             return 1
-        nvc_post_point(tips_thick, "Justin", "Tip_detection", "error_tip_thick", 0, metadata)
-        nvc_post_point(tips_thin, "Justin", "Tip_detection", "error_tip_thin", 0, metadata)
-        nvc_post_point(thru_branch_tips, "Justin", "Tip_detection", "error_tip_branch", 0, metadata)
-        nvc_post_point(tip_no_flat_thick, "Justin", "Tip_detection", "tip_thick", 0, metadata)
-        nvc_post_point(tips_no_flat_thin, "Justin", "Tip_detection", "tip_thin", 0, metadata)
-        nvc_post_point(flat_no_tip, "Justin", "Tip_detection", "errorloc", 0, metadata)
+        nvc_post_point(tips_thick, "Justin", "Tip_detection_GT", "error_tip_thick", 0, metadata)
+        nvc_post_point(tips_thin, "Justin", "Tip_detection_GT", "error_tip_thin", 0, metadata)
+        nvc_post_point(thru_branch_tips, "Justin", "Tip_detection_GT", "error_tip_branch", 0, metadata)
+        nvc_post_point(tip_no_flat_thick, "Justin", "Tip_detection_GT", "tip_thick", 0, metadata)
+        nvc_post_point(tip_no_flat_thin, "Justin", "Tip_detection_GT", "tip_thin", 0, metadata)
+        nvc_post_point(flat_no_tip, "Justin", "Tip_detection_GT", "errorloc", 0, metadata)
+
         
     return tips_thick 
 
