@@ -735,16 +735,17 @@ def endpoints_from_rid(root_id, center_collapse=True):
     return tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip 
 
 
-def get_endpoints(mesh, center=None, invalidation=3000, len_thresh=6000, rad_thresh=6000, remove_small=True, path_dist_to_tip=5000):
+def get_endpoints(mesh, center=None, invalidation=3000, soma_radius=2000, len_thresh=4000, rad_thresh=2000, remove_small=True, path_dist_to_tip=5000):
     if type(center) == type(None):
         collapse_function = 'branch'
     else:
         collapse_function = 'sphere'
+    print(collapse_function)
     skel_mp = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh.vertices, 
                                                 mesh.faces),
                                                 invalidation_d=invalidation,
                                                 collapse_function=collapse_function,
-                                                soma_radius = 7500,
+                                                soma_radius = soma_radius,
                                                 soma_pt=center,
                                                 smooth_neighborhood=5,
 #                                                     collapse_params = {'dynamic_threshold':True}
@@ -784,8 +785,8 @@ def get_endpoints(mesh, center=None, invalidation=3000, len_thresh=6000, rad_thr
                 continue
             if min_tip < hit_tips[tip_hit]:
                 if tip_hit in flat_tip_agree:
-                    extra_flat_surfaces_tip.append(flat_tip_agree[tip_hit])
-                flat_tip_agree[tip_hit] = tip
+                    extra_flat_surfaces_tip.append(flat_tip_agree[eps[tip_hit]])
+                flat_tip_agree[eps[tip_hit]] = tip
                 hit_tips[tip_hit] = min_tip
             elif tip_hit in flat_tip_agree:
                 extra_flat_surfaces_tip.append(tip)
@@ -804,6 +805,7 @@ def get_endpoints(mesh, center=None, invalidation=3000, len_thresh=6000, rad_thr
         edge_bins_thick = np.bincount(edges_thick_flat)
         eps_thick = np.squeeze(np.argwhere(edge_bins_thick==1))
         for f in flat_tip_agree:
+            print("F", f)
             if f in eps_thick:
                 flat_tip_agree_thick[f] = flat_tip_agree[f]
             else:
@@ -813,8 +815,8 @@ def get_endpoints(mesh, center=None, invalidation=3000, len_thresh=6000, rad_thr
         thick_mask = np.ones(eps.shape[0])
         flat_tip_agree_thin = {}
         flat_tip_agree_thick = flat_tip_agree
-    tip_no_flat_thick = eps[(hit_tips == path_dist_to_tip) * thick_mask]
-    tip_no_flat_thin = eps[(hit_tips == path_dist_to_tip) * ~thick_mask]
+    tip_no_flat_thick = endpoints_nm[(hit_tips == path_dist_to_tip) * thick_mask]
+    tip_no_flat_thin = endpoints_nm[(hit_tips == path_dist_to_tip) * ~thick_mask]
     
     flat_tip_branch = np.array(flat_tip_branch)
     # flat_tip_agree = np.array(list(flat_tip_agree.values()))
