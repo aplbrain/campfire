@@ -346,8 +346,7 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
     if save == "nvq":
         import neuvueclient as Client
         print("DURATION", duration, root_id, endpoint, "\n")
-        metadata = {'namespace':namespace,
-                    'time':str(time_point), 
+        metadata = {'time':str(time_point), 
                     'duration':str(duration), 
                     'device':device,
                     'bbox':[str(x) for x in bound], 
