@@ -1,7 +1,7 @@
 from logging import root
 import pandas as pd
 import numpy as np
-from tip_finding.tip_finding import endpoints_from_rid
+#from tip_finding.tip_finding import endpoints_from_rid
 import time
 import aws.sqs as sqs
 import sys
@@ -67,6 +67,7 @@ def get_points_nvc(filt_dict):
 def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, threshold=8, namespace='Agents'):
     
+    tic = time.time()
     from extension import Extension as Ext
     ext = Ext(root_id, resolution, radius, unet_bound_mult, 
     device, save, nucleus_id, time_point, endpoint, namespace)
@@ -90,11 +91,15 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(2,2,1), u
     return ext, 1
 
 def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(2,2,1), unet_bound_mult=1.5, save='nvq', device='cpu'):
+    print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device)
     points = get_points_nvc({"namespace":namespace})
-    for p in points:
-        rid = int(p.metadata['root_id'])
-        p = np.array(p.coordinate).astype(int)
-        ext, s = segment_points(rid, p, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_agt)
+    print("points", points)
+    for p in range(points.shape[0]):
+        print(points.iloc[p])
+        row = points.iloc[p]
+        rid = int(row.metadata['root_id'])
+        pt = np.array(row.coordinate).astype(int)
+        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_agt)
         if s == 0:
             continue
         ext.save_agent_merges()
@@ -168,11 +173,11 @@ def sqs_agents(radius=(200,200,20), delete=False):
 if __name__ == "__main__":
     # Wraps the command line arguments
     mode = sys.argv[1]
-
+    print("args", sys.argv)
     if mode == 'tips':
         end = int(sys.argv[2])
         save = sys.argv[3]
         delete = bool(sys.argv[4])
         run_endpoints(end, save, delete)
     if mode == 'agents':
-        run_nvc_agents(sys.argv[2], device=sys.argv[3], namespace=sys.argv[4])
+        run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4])
