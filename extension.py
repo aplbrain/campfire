@@ -10,7 +10,6 @@ import agents.scripts as scripts
 from agents.swarm import Swarm
 import time
 import backoff
-import cv2        
 from scipy.ndimage.measurements import label
 
 class Extension():
@@ -35,7 +34,7 @@ class Extension():
         self.time_point = time_point
         self.tic1 = time.time()
         self.namespace=namespace
-        
+
     def get_bounds(self,endp):
         self.endpoint = np.divide(endp, self.resolution).astype('int')
         self.bound = get_bounds(self.endpoint, self.radius)
@@ -195,6 +194,7 @@ class Extension():
             return q
 
     def get_seg_slices(self):
+        import cv2        
         import  copy
         seg_mask = copy.deepcopy(self.seg)
         # import pickle
@@ -210,6 +210,7 @@ class Extension():
             seg_slice = seg_mask[:,:,z]
             if not np.any(seg_slice):
                 continue
+
             _, x, y, _ = cv2.connectedComponentsWithStats(seg_slice)
             max_label = np.argmax(y[1:, 4])+1
             seg_slice = x == max_label
