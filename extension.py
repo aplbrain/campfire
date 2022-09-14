@@ -129,8 +129,8 @@ class Extension():
 
     def save_agent_merges(self):
         duration = time.time()-self.tic1
-        save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint*self.resolution,
-                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespsace)
+        save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
+                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace)
    
     # Create a queue out of any of the above sampling methods
     def create_queue(self, n_pts, sampling_type="extension_only"):
@@ -231,8 +231,8 @@ class Extension():
         self.merges = scripts.position_merge(self.endpoint, self.root_id, self.merge_d, self.endpoint*self.resolution, self.n_errors, self.mean_errors, self.max_error, self.seg_remap_dict)
         if self.merges.shape[0] > 0:
             #merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
-            self.seg_ids = [int (x[:-1]) for x in self.merges.Extension]
-            weights = [int(x) for x in self.merges.Weight]
+            self.seg_ids = [str(x[:-1]) for x in self.merges.Extension]
+            weights = [str(x) for x in self.merges.Weight]
             self.weights_dict = dict(zip(self.seg_ids, weights))
         else:
             self.weights_dict = {}
@@ -351,14 +351,16 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
                     'device':device,
                     'bbox':[str(x) for x in bound], 
                     'bbox_em':[str(x) for x in bound_EM],
-                    'n_errors':n_errors,
+                    'n_errors':str(n_errors),
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
-        end = [str(x) for x in endpoint]
-        
-        print("Posted", str(root_id[0]), str(nucleus_id), end, weights_dict, metadata)
-        C.post_agent(str(root_id[0]), str(nucleus_id), end, weights_dict, metadata)
-        
+        end = [int(x) for x in endpoint]
+        if type(root_id) == int:
+            root_id = str(root_id)
+        elif type(root_id) == list or type(root_id) == np.ndarray:
+            root_id = str(root_id[0])
+        print("Posted", str(root_id), str(nucleus_id), end, weights_dict, metadata)
+        C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata) 
         # pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
 
         # pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
