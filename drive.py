@@ -95,7 +95,7 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(2,2,1), u
     points = get_points_nvc({"namespace":namespace})
     print("points", points)
     for p in range(points.shape[0]):
-        print(points.iloc[p])
+        print(points.iloc[p].coordinate)
         row = points.iloc[p]
         rid = int(row.metadata['root_id'])
         pt = np.array(row.coordinate).astype(int)
@@ -103,7 +103,7 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(2,2,1), u
         if s == 0:
             continue
         ext.save_agent_merges()
-        print("Done". rid, p, ext.merges.iloc[0])
+        print("Done", rid, p, ext.merges)
     return 1
 
 
@@ -180,4 +180,4 @@ if __name__ == "__main__":
         delete = bool(sys.argv[4])
         run_endpoints(end, save, delete)
     if mode == 'agents':
-        run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4])
+        run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4], rez=np.array([8,8,40]))
