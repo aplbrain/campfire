@@ -6,6 +6,7 @@ import time
 import aws.sqs as sqs
 import sys
 import backoff
+import datetime
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=5)
 def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
@@ -24,7 +25,6 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
             entries = entries[10:]
             sqs.send_batch(queue_url_endpoints, entries_send)
     elif save == 'nvq':
-        import datetime
         import neuvueclient as Client
         time_point = datetime.datetime.now()
 
@@ -64,9 +64,12 @@ def get_points_nvc(filt_dict):
     C = Client.NeuvueQueue("https://queue.neuvue.io")
     return C.get_points(filt_dict)
 
-def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
-                   nucleus_id=0, time_point=0, threshold=8, namespace='Agents'):
+def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
+                   nucleus_id=0, time_point=0, namespace='Agents'):
     
+    if time_point == 0:
+        time_point = datetime.datetime.now()
+
     tic = time.time()
     from extension import Extension as Ext
     ext = Ext(root_id, resolution, radius, unet_bound_mult, 
@@ -90,12 +93,12 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(2,2,1), u
     ext.run_agents(nsteps=1000)
     return ext, 1
 
-def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(2,2,1), unet_bound_mult=1.5, save='nvq', device='cpu'):
+def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1.5, save='nvq', device='cpu'):
     print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device)
     points = get_points_nvc({"namespace":namespace})
-    print("points", points)
+    # print("points", points)s
     for p in range(points.shape[0]):
-        print(points.iloc[p])
+        print(points.iloc[p].coordinate)
         row = points.iloc[p]
         rid = int(row.metadata['root_id'])
         pt = np.array(row.coordinate).astype(int)
@@ -106,43 +109,8 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(2,2,1), u
         print("Done". rid, p, ext.merges.iloc[0])
     return 1
 
-
-def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu', nucleus_id=0, time_point=0, threshold=8):
-    from extension import Extension as Ext
-
-    hit_ids = [root_id]
-    current_root_id = root_id
-    
-    merges = pd.DataFrame()
-    ext = Ext(root_id, resolution, radius, unet_bound_mult, 
-              device, save, nucleus_id, time_point)
-
-    while True:
-        try:
-            endpoint = endpoints.pop()
-        except IndexError:
-            merges.to_csv("./merges_series")
-            return merges
-        success = ext.gen_membranes(endpoint)
-        ext.run_agents()
-        initial_merges = ext.merges
-        merges = pd.concat([merges, initial_merges])
-        initial_merges = initial_merges[initial_merges.Weight > threshold]
-        initial_merges = initial_merges[initial_merges.Synapse_filter == False]
-        initial_merges = initial_merges[initial_merges.Polarity_filter == False]
-        initial_merges = initial_merges[np.logical_not(initial_merges.Extension.isin(hit_ids))]
-
-        if initial_merges.shape[0] == 0:
-            return
-        highest_val = initial_merges.sort_values('Weight', ascending=False).iloc[0]
-        current_root_id = highest_val.Extension
-        hit_ids.append(current_root_id)
-        next_endpoints = tip_finder_decimation(hit_ids)
-        for ep in next_endpoints:
-            endpoints.append(ep)
-
 def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
-                   nucleus_id=0, time_point=0, threshold=8):
+                   nucleus_id=0, time_point=0):
     from extension import Extension as Ext
 
     ct=0
@@ -156,7 +124,6 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
         filt_df = gt_df[gt_df.R == root_id]
         print("Shape", filt_df.shape[0])
         for i in range(filt_df.shape[0]):
-            tic = time.time()
             row = filt_df.iloc[i]
             endpoint = eval(row.G1)
             ext, s = segment_points(root_id, endpoint, radius, resolution)
@@ -166,9 +133,6 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
             merges = pd.concat([merges, ext.merges])
             ct+=1
 
-def sqs_agents(radius=(200,200,20), delete=False):
-    root_id, nucleus_id, time_point, endp = utils.get_endpoint('sqs', delete, endp, root_id, nucleus_id, time_point)
-    merges = drive()
 
 if __name__ == "__main__":
     # Wraps the command line arguments
