@@ -1,13 +1,28 @@
-FROM nvidia/cuda
+FROM tensorflow/tensorflow:latest-gpu
+#FROM python:3.8
 LABEL maintainer "Justin Joyce <Justin.Joyce@jhuapl.edu>"
 
-COPY . /root/campfire
-COPY neuvuequeue.cfg /root/.neuvuequeue/neuvuequeue.cfg
-COPY credentials /root/.aws/credentials
 
 WORKDIR /root/campfire
-RUN pip3 install --upgrade pip
-RUN pip3 install -r requirements.txt
-RUN pip3 install git+https://github.com/aplbrain/neuvue-client.git
+RUN apt-get update
+RUN apt-get install ffmpeg libsm6 libxext6  -y
+RUN apt install python3.8-venv
+RUN apt install -y git
+RUN python3 -m venv /opt/venv
 
-CMD [ "python3", "drive.py", "1", "radius=(100,100,10)", "resolution=(8,8,40)", "unet_bound_mult=4", "ep=sqs", "save=sqs","device=cpu"]
+RUN pip3 install --upgrade pip
+COPY ./requirements.txt /root/campfire
+RUN . /opt/venv/bin/activate && pip3 install -r requirements.txt
+
+RUN . /opt/venv/bin/activate && pip3 install --upgrade  "jax[cuda11_cudnn805]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+RUN . /opt/venv/bin/activate && pip3 install git+https://github.com/google-research/sofima
+
+COPY . /root/campfire
+COPY cave-secret.json /root/.cloudvolume/secrets/cave-secret.json
+COPY credentials /root/.aws/credentials
+RUN . /opt/venv/bin/activate && pip3 install -e ./neuvue-client
+RUN . /opt/venv/bin/activate && pip3 install -e ./intern
+COPY neuvuequeue.cfg /root/.neuvuequeue/neuvuequeue.cfg
+RUN pip3 freeze
+
+CMD . /opt/venv/bin/activate && python3 drive.py agents nvq gpu agents_gt Tip_detection_GT

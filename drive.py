@@ -107,7 +107,7 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
         if s == 0:
             continue
         ext.save_agent_merges()
-        print("Done". rid, p, ext.merges.iloc[0])
+        print("Done", rid, p, ext.merges)
     return 1
 
 def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
@@ -145,4 +145,4 @@ if __name__ == "__main__":
         delete = bool(sys.argv[4])
         run_endpoints(end, save, delete)
     if mode == 'agents':
-        run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4])
+        run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4], rez=np.array([8,8,40]))
