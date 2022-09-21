@@ -1,7 +1,6 @@
 from logging import root
 import pandas as pd
 import numpy as np
-#from tip_finding.tip_finding import endpoints_from_rid
 import time
 import aws.sqs as sqs
 import sys
@@ -9,6 +8,7 @@ import backoff
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=5)
 def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
+    from tip_finding.tip_finding import endpoints_from_rid
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
     print("RID", root_id)
@@ -41,11 +41,11 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
         
     return tips_thick 
 
-def run_endpoints(end, save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
+def run_endpoints(end, namespace="tips", save='nvq', delete=False):
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
     n_root_id = 0
     while n_root_id < end or end == -1:
-        endpoints(queue_url_rid, save, delete)
+        endpoints(queue_url_rid, namespace, save, delete)
         n_root_id+=1
     return 1
 
@@ -178,6 +178,7 @@ if __name__ == "__main__":
         end = int(sys.argv[2])
         save = sys.argv[3]
         delete = bool(sys.argv[4])
-        run_endpoints(end, save, delete)
+        namespace=str(sys.argv[5])
+        run_endpoints(end, namespace, save, delete)
     if mode == 'agents':
         run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4], rez=np.array([8,8,40]))
