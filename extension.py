@@ -40,7 +40,7 @@ class Extension():
         self.bound = get_bounds(self.endpoint, self.radius)
         self.bound_EM = get_bounds(self.endpoint, self.radius, self.unet_bound_mult)
 
-    def gen_membranes(self, intern_pull=True, restitch_gaps=False, restitch_linear=False, radius=(200,200), conv_radius=3):
+    def gen_membranes(self, intern_pull=True, restitch_gaps=False, restitch_linear=False, conv_radius=3):
         tic = time.time()
         self.seg, self.em_big = self.get_data()
         toc=time.time()
@@ -61,7 +61,7 @@ class Extension():
         idx = np.searchsorted(from_values, self.seg,sorter = sort_idx)
         self.seg_remap = to_values[sort_idx][idx]
 
-        self.mem_seg, self.seg, self.em, errors_gap, errors_linear = em_analysis(self.em_big, self.seg_remap, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM, restitch_gaps, restitch_linear)
+        self.mem_seg, self.seg, self.em, errors_gap, errors_linear = em_analysis(self.em_big, self.seg_remap, self.cnn_weights, self.device, self.bound_EM, intern_pull=intern_pull, restitch_gaps=restitch_gaps, restitch_linear=restitch_linear)
         self.errors = errors_gap + errors_linear
         self.mem_to_run = self.mem_seg#[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
                    # int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
@@ -242,18 +242,17 @@ class Extension():
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     def get_data(self, seg_or_sv = 'sv'):
         vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-        try:
-            em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
+        em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
 
-            if seg_or_sv == 'seg':
-                self.seg_root_id = self.public_root_id
-                seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
-            elif seg_or_sv == 'sv':
-                self.seg_root_id = self.root_id
-                seg = data_loader.supervoxels(*self.bound_EM)
-        except (exceptions.OutOfBoundsError, exceptions.EmptyVolumeException):
-            print("OOB")
-            return "Out Of Bounds", "Out Of Bounds"
+        if seg_or_sv == 'seg':
+            self.seg_root_id = self.public_root_id
+            seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
+        elif seg_or_sv == 'sv':
+            self.seg_root_id = self.root_id
+            seg = data_loader.supervoxels(*self.bound_EM)
+        # except (exceptions.OutOfBoundsError, exceptions.EmptyVolumeException):
+        #     print("OOB")
+        #     return "Out Of Bounds", "Out Of Bounds"
         return seg, em 
 
 def get_bounds(endpoint, radius, mult=1):
@@ -283,7 +282,7 @@ def get_endpoint(ep_param, delete, endp, root_id, nucleus_id, time_point):
         ep = [float(p) for p in endp]
     return root_id, nucleus_id, time_point, ep
 
-def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM, preprocess=False, intern_pull=True, restitch_gaps=True, restitch_linear=True):
+def em_analysis(em, seg, cnn_weights, device, bound_EM, intern_pull=True, restitch_gaps=True, restitch_linear=True):
 
     # mem_seg = np.asarray(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]])
     # if np.sum(mem_seg) == 0:
@@ -315,7 +314,7 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
                 bound_EM[0]:bound_EM[1]] 
         mem_seg = np.moveaxis(np.array(mem_seg), 0, 2)
         print("Successful Intern Pull")
-
+    print(restitch_gaps, restitch_linear)
     if restitch_gaps:
         errors_gap = scripts.detect_zero_locs(em, .25)
         errors_zero_template = scripts.detect_artifacts_template(em, errors_gap)
@@ -325,6 +324,7 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
     
     else:
         errors_gap = np.zeros(em.shape[2])
+        errors_zero_template = np.zeros(em.shape[2])
 
     if restitch_linear:
         em, seg, mem_seg = scripts.sofima_stitch(em, warp_scale=1.1, 
@@ -332,8 +332,6 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
                                                    others_to_transform=[seg, mem_seg])
         mem_seg[512] = 1
         mem_seg[:, 512] =1
-    else:
-        errors_zero_template = {}
 
     return mem_seg, seg, em, errors_gap, errors_zero_template
 

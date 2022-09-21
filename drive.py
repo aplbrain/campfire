@@ -1,7 +1,6 @@
 from logging import root
 import pandas as pd
 import numpy as np
-#from tip_finding.tip_finding import endpoints_from_rid
 import time
 import aws.sqs as sqs
 import sys
@@ -10,16 +9,18 @@ import datetime
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=5)
 def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
+    from tip_finding.tip_finding import endpoints_from_rid
+
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
     print("RID", root_id)
-    tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip  = endpoints_from_rid(root_id)
+    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, all_flat  = endpoints_from_rid(root_id)
     if delete:
         root_id_msg.delete()
     if save == 'sqs':
         queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
 
-        entries=sqs.construct_endpoint_entries(tips_thick, root_id)
+        entries=sqs.construct_endpoint_entries(good_tips_thick, root_id)
         while(len(entries) > 0):
             entries_send = entries[:10]
             entries = entries[10:]
@@ -32,12 +33,12 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
                     'root_id':str(root_id),
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
-        nvc_post_point(C, tips_thick.astype(int), "Justin", namespace, "error_tip_thick", 0, metadata)
-        nvc_post_point(C, tips_thin.astype(int), "Justin", namespace, "error_tip_thin", 0, metadata)
-        nvc_post_point(C, thru_branch_tips.astype(int), "Justin", namespace, "error_tip_branch", 0, metadata)
-        nvc_post_point(C, tip_no_flat_thick.astype(int), "Justin", namespace, "tip_thick", 0, metadata)
-        nvc_post_point(C, tip_no_flat_thin.astype(int), "Justin", namespace, "tip_thin", 0, metadata)
-        nvc_post_point(C, flat_no_tip.astype(int), "Justin", namespace, "errorloc", 0, metadata)
+        nvc_post_point(C, good_tips_thick.astype(int), "Justin", namespace, "error_high_confidence_thick", 0, metadata)
+        nvc_post_point(C, good_tips_thin.astype(int), "Justin", namespace, "error_high_confidence_thin", 0, metadata)
+        nvc_post_point(C, good_tips_bad_thick.astype(int), "Justin", namespace, "error_low_confidence_thick", 0, metadata)
+        nvc_post_point(C, good_tips_bad_thin.astype(int), "Justin", namespace, "error_low_confidence_thin", 0, metadata)
+        nvc_post_point(C, all_tips.astype(int), "Justin", namespace, "all_tips", 0, metadata)
+        nvc_post_point(C, all_flat.astype(int), "Justin", namespace, "all_flats", 0, metadata)
         
     return tips_thick 
 
