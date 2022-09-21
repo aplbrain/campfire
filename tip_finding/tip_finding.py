@@ -530,6 +530,7 @@ def get_flat_regions(mesh, minsize=100000, n_iter=6):
     flat_mask = np.full(sums_mask.shape[0], True)
 
     mean_locs = []
+    mean_locs_all = []
     mean_locs_bad = []
     inds_good = []
     inds_bad = []
@@ -586,16 +587,18 @@ def get_flat_regions(mesh, minsize=100000, n_iter=6):
         elif not f:
             flat_mask[s] = False
         elif np.sum(af*(angs < np.pi/4)) < .35:
+            mean_locs_all.append(mloc)
             mean_locs.append(mloc)
             inds_good.append(s)
         else:
+            mean_locs_all.append(mloc)
             mean_locs_bad.append(mloc)
             inds_bad.append(s)
     #         print(s,np.mean(angs), np.divide(mloc, np.array([4,4,40])))
 
     mean_locs = np.array(mean_locs)
     mean_locs_bad = np.array(mean_locs_bad)
-    return sums_mask, locs, sums, graphs, normals, mean_locs, mean_locs_bad
+    return sums_mask, locs, sums, graphs, normals, mean_locs, mean_locs_bad, mean_locs_all
 
 def connected_faces(m, connectivity = 6):
     import cc3d
@@ -784,9 +787,9 @@ def endpoints_from_rid(root_id, center_collapse=True):
     else:
         soma_center=None
         print(root_id, "No Soma Found")
-    tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip = get_endpoints(mesh, soma_center)
+    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means = get_endpoints(mesh, soma_center)
 
-    return tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip 
+    return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means 
 
 def chop_thin_bits_mean(mean_locs, skel_mp, rad_thresh=100, rad_len_thresh=1000, filt_len=3, path_dist_to_tip=5000):
     rad_dict = {}
@@ -884,7 +887,7 @@ def chop_thin_bits_mean(mean_locs, skel_mp, rad_thresh=100, rad_len_thresh=1000,
                         running_nodes.append(node[0])
 
     area_dict = {key: len_dict[key]*rad_dict[key] for key in len_dict.keys()}
-    return edges, area_dict, mask_verts, flat_tip_agree_thick, flat_tip_agree_thin
+    return edges, area_dict, mask_verts, flat_tip_agree_thick, flat_tip_agree_thin, eps_nm
 
 def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_len_thresh=1000000, rad_thresh=300, filt_len=3, path_dist_to_tip=5000):
     if type(center) == type(None):
@@ -901,18 +904,18 @@ def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_le
                                                 smooth_neighborhood=5,
 #                                                     collapse_params = {'dynamic_threshold':True}
                                                 )
-    sums_mask, locs, sums, graphs, normals, mean_locs, mean_locs_bad = get_flat_regions(mesh)
+    sums_mask, locs, sums, graphs, normals, mean_locs, mean_locs_bad, mean_locs_all = get_flat_regions(mesh)
 
-    edges_thick, area_dict, mask_verts, gtips, btips = chop_thin_bits_mean(mean_locs, 
-                                                                        skel_mp,
-                                                                        rad_thresh=rad_thresh, 
-                                                                        rad_len_thresh=rad_len_thresh,
-                                                                        filt_len=filt_len,
-                                                                        path_dist_to_tip=path_dist_to_tip)
+    edges_thick, area_dict, mask_verts, gtips, btips, all_tips = chop_thin_bits_mean(mean_locs, 
+                                                                                    skel_mp,
+                                                                                    rad_thresh=rad_thresh, 
+                                                                                    rad_len_thresh=rad_len_thresh,
+                                                                                    filt_len=filt_len,
+                                                                                    path_dist_to_tip=path_dist_to_tip)
     good_tips_thick = np.array(list(gtips.values()))
     good_tips_thin = np.array(list(btips.values()))
 
-    edges_thick, area_dict, mask_verts, gtips_bad, btips_bad = chop_thin_bits_mean(mean_locs_bad, 
+    edges_thick, area_dict, mask_verts, gtips_bad, btips_bad, _ = chop_thin_bits_mean(mean_locs_bad, 
                                                                         skel_mp,
                                                                         rad_thresh=rad_thresh, 
                                                                         rad_len_thresh=rad_len_thresh,
@@ -920,4 +923,4 @@ def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_le
     good_tips_bad_thick = np.array(list(gtips_bad.values()))
     good_tips_bad_thin = np.array(list(btips_bad.values()))
     
-    return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin
+    return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, mean_locs_all
