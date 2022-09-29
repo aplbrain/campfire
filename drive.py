@@ -85,21 +85,22 @@ def get_points_nvc(filt_dict):
     return C.get_points(filt_dict)
 
 def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
-                   nucleus_id=0, time_point=0, namespace='Agents'):
+                   nucleus_id=0, time_point=0, namespace='Agents', direction_test=True):
     
     if time_point == 0:
         time_point = datetime.datetime.now()
 
     tic = time.time()
     from extension import Extension as Ext
+    from extension import save_merges
     ext = Ext(root_id, resolution, radius, unet_bound_mult, 
-    device, save, nucleus_id, time_point, endpoint, namespace)
+    device, save, nucleus_id, time_point, namespace, direction_test)
     toc = time.time()
     print("Ext Time", toc-tic)
     ext.get_bounds(endpoint)
     tic = time.time()
     print("Bounds Time", tic-toc)
-    success = ext.gen_membranes(restitch_gaps=True, restitch_linear=True)
+    success = ext.gen_membranes(restitch_gaps=True, restitch_linear=True, conv_radius=7)
     toc = time.time()
     print("Membranes Time", toc-tic)
 
@@ -110,11 +111,17 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), 
         ext.mem_seg = 0
         ext.n_errors = 61
         return ext, 0
-    ext.run_agents(nsteps=1000)
+    # ext.run_agents(nsteps=1000)
+    ext.dist_transform_merge()
+    ext.distance_merge_save()
+    duration = time.time()-ext.tic1
+
+    save_merges(ext.save, ext.merges, ext.root_id[0], ext.nucleus_id, ext.time_point, ext.endpoint,
+            ext.weights_dict, ext.bound, ext.bound_EM, ext.mem_seg, ext.device, duration, ext.n_errors, ext.namespace)
     return ext, 1
 
-def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1.5, save='nvq', device='cpu'):
-    print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device)
+def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1.5, save='nvq', device='cpu', direction_test=True):
+    print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device, direction_test)
     points = get_points_nvc({"namespace":namespace})
     # print("points", points)s
     for p in range(points.shape[0]):
@@ -122,7 +129,7 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
         row = points.iloc[p]
         rid = int(row.metadata['root_id'])
         pt = np.array(row.coordinate).astype(int)
-        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_agt)
+        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_agt, direction_test=direction_test)
         if s == 0:
             continue
         ext.save_agent_merges()
