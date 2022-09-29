@@ -11,6 +11,9 @@ from sofima.flow_field import JAXMaskedXCorrWithStatsCalculator
 from sofima.flow_utils import clean_flow
 from sofima.warp import ndimage_warp
 from sofima import mesh
+from sofima import map_utils
+from connectomics.common import bounding_box
+from sofima import flow_utils
 
 def load_membrane_vectors(precomp_fn):
     # If there already is a saved out precompute file, just load it!
@@ -33,9 +36,11 @@ def precompute_membrane_vectors(mem, memz, mem_radius=3):
 
     rad = int(mem_radius / 2)
     a = np.arange(mem_radius) - rad
+    a_s = np.arange(3) - rad
     a[:rad], a[-rad:] = np.flip(a[:rad]), np.flip(a[-rad:])
-    kx, ky, kz = np.meshgrid(a, a, a)
-
+    a_s[:rad], a_s[-rad:] = np.flip(a_s[:rad]), np.flip(a_s[-rad:])
+    kx, ky, kz = np.meshgrid(a, a, a_s)
+    # print("KS", kx.shape, ky.shape, kz.shape)
     mem_x = convolve(mem.astype(int), kx, mode="constant", cval=5)[..., np.newaxis]
     mem_y = convolve(mem.astype(int), ky, mode="constant", cval=5)[..., np.newaxis]
     # Note memz is used here - the yz plane edge detection is important
@@ -78,7 +83,7 @@ def position_merge(ep, root_id, merge_d, endpoint_nm, n_errors, mean_err, max_er
                 weight = int(merges[k])
             elif int(k[1]) in root_id:
                 extension = int(k[0])
-                weight = int(merges[k])
+                weight = float(merges[k])
             else:
                 continue
             if extension == 0:
@@ -122,6 +127,8 @@ def create_post_matrix(pos_histories, seg, data_shape,merge=False,threshold=5):
         added = set()
         for j, p in enumerate(h):
             p = p.astype(int)
+            if p[2] > data_shape[2] or p[2] < 0:
+                continue
             seg_id = seg[p[0], p[1], p[2]]
             if merge and seg_id != init_rid:
                 # if seg_id not in added:
@@ -139,6 +146,7 @@ def create_post_matrix(pos_histories, seg, data_shape,merge=False,threshold=5):
     return pos_matrix, merge_d
 
 def remove_keymap_conflicts(new_keys_set):
+    import matplotlib.pyplot as plt
     """
     Removes matplotlib in-built keybinding conflicts
     :param new_keys_set: dict of chars to be unbound
@@ -182,7 +190,7 @@ def multi_slice_viewer(membranes, positions=None, start_slice=-1):
 
     # create your alpha array and fill the colormap with them.
     agent_colors._lut[0, -1] = 0
-    print("A", ax.index)
+    # print("A", ax.index)
     ax.imshow(
         membranes[:, :, ax.index].T, interpolation="nearest", cmap=mem_colors, origin="upper"
     )
@@ -607,26 +615,26 @@ def shift_detect_rearrange(em_o, seg, radius, zero_threshold=.7, noise_sigma=0, 
         for i in range(em_shape_z_half + 1, em.shape[2]):
             current_frame = em[:, :, i]
             if np.sum(current_frame < 10) > zero_threshold*pixels_per_frame:
-                print(i, "drop", np.sum(current_frame < 10) / pixels_per_frame)
+                # print(i, "drop", np.sum(current_frame < 10) / pixels_per_frame)
                 dropped.append(i)
                 shifts[i] = np.array([np.nan, np.nan])
                 continue
             res = cv2.matchTemplate(current_frame, last_frame_template, cv2.TM_CCOEFF_NORMED)
             min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)        
             if max_val < .1:
-                print("Warp", i)
+                # print("Warp", i)
                 shifts[i] = np.array([np.nan, np.nan])
                 dropped.append(i)
                 continue
             else:
                 max_loc_dist = np.linalg.norm(em_middle - max_loc)
-                print(max_loc_dist, i)
+                # print(max_loc_dist, i)
             min_loc = max_loc
             min_loc = min_loc[1], min_loc[0]
             shifts[i] = np.array(min_loc) + radius
             shifts[i] = shifts[i] - np.array([em_shape[0]//2, em_shape[1]//2])
 
-            print(i, min_loc, max_val, shifts[i])
+            # print(i, min_loc, max_val, shifts[i])
             last_frame_template = current_frame[min_loc[0]:min_loc[0] + 2*radius, min_loc[1]:min_loc[1] + 2*radius]
             
     # down
@@ -640,14 +648,14 @@ def shift_detect_rearrange(em_o, seg, radius, zero_threshold=.7, noise_sigma=0, 
         for i in range(em_shape_z_half-1, -1, -1):
             current_frame = em[:, :, i]
             if np.sum(current_frame < 10) > zero_threshold*pixels_per_frame:
-                print(i, "drop", np.sum(current_frame < 10) / pixels_per_frame)
+                # print(i, "drop", np.sum(current_frame < 10) / pixels_per_frame)
                 dropped.append(i)
                 shifts[i] = np.array([np.nan, np.nan])
                 continue
             res = cv2.matchTemplate(current_frame, last_frame_template, cv2.TM_CCOEFF_NORMED)
             min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)        
             if max_val < .1:
-                print("Warp", i)
+                # print("Warp", i)
                 shifts[i] = np.array([np.nan, np.nan])
                 dropped.append(i)
                 continue
@@ -697,7 +705,7 @@ def detect_artifacts_template(em_o, errors_zero,diam=30):
     # Then, start at that slice and direction and work your way up or down and track
     # the first place where seg cuts out
     em_center = np.array([em1.shape[0]//2, em1.shape[0]//2])
-    radius = int((em1.shape[0]//8)*3)
+    radius = int((em1.shape[0]//4))
     xmin, xmax = em_center[0]-radius, em_center[0]+radius
     # Making Gaussian to template match
     # Radius of Gaussian at 10 works well experimentally
@@ -734,30 +742,29 @@ def detect_artifacts_template(em_o, errors_zero,diam=30):
             zero=False
         else:
             indx = i-1
-            
+
         last_frame = em1[:,:,indx]
         frame=em1[:,:,i]
         last_frame_center = last_frame[xmin:xmax, xmin:xmax]
         
         res = cv2.matchTemplate(frame, last_frame_center, cv2.TM_CCOEFF_NORMED)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+        min_val1, max_val1, min_loc1, max_loc1 = cv2.minMaxLoc(res)
 
         mres = np.min(res)
-        res = (res - mres)/ (np.max(res) - mres)
+        res = (res - mres)/ (np.max(res) - mres) if np.max(res) - mres != 0 else np.zeros_like(res)
         iden = cv2.matchTemplate(res.astype(np.float32), mask.astype(np.float32), cv2.TM_CCOEFF)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(iden)
-
-        print(i, indx, max_val, np.mean(frame), np.mean(last_frame_center))
-        if max_val < 40:
+        if max_val < 30:
             errors_zero_template[i] = 1
             errors_zero_template[indx] = 1
         else:
             good_locs[i] = 0
             good_locs[indx] = 0
     errors_zero_template = np.logical_and(errors_zero_template, good_locs)
+
     return errors_zero_template
 
-def get_warp(em, errors, patch_size = 100, stride = 25):
+def get_warp(em, errors, patch_size = 256, stride = 128):
     err_pre_post = []
 
     i=0
@@ -926,7 +933,7 @@ def correct_with_flow(em, warps, stride=25,scale=True, alternate=True, others_to
                     warp_indx = w[alt]
                     alt = 1 if alt==0 else -1
                     indx = warp_indices[(i+1)//2 * alt]
-                    scalar = alt*((i+1) / rng)
+                    scalar = alt#*((((i//2)+1)) / rng)
 
                 else:
                     scalar = i+1
@@ -939,17 +946,18 @@ def correct_with_flow(em, warps, stride=25,scale=True, alternate=True, others_to
             warped_img = ndimage_warp(
                 em[..., warp_indx], 
                 warps[w]*scalar, 
-                stride=(stride,stride), 
+                stride=(256,256), 
                 work_size=(300,300), 
                 overlap=(0, 0)
             )
+            print("WARPED INDX", indx)
             warped[:, :, indx] = warped_img
 
             for j in range(len_others):
                 warped_img = ndimage_warp(
                     others_to_transform[j][..., warp_indx], 
                     warps[w]*scalar, 
-                    stride=(stride,stride), 
+                    stride=(256,256), 
                     work_size=(300,300), 
                     overlap=(0, 0)
                 )
@@ -1002,17 +1010,18 @@ def rigid_transform_slices(em, shifts, radius=None):
                                     i]
     return em_new
 
-def sofima_stitch(em, patch_size=150, stride=75, warp_scale=1.1, others_to_transform = []):
-
+def sofima_stitch(em,  warps, patch_size=256, stride=128, warp_scale=1.1, others_to_transform = [], direction=0):
     maskcorr = JAXMaskedXCorrWithStatsCalculator()
-
+#     patch_size = 150
+#     stride = 75
     config = mesh.IntegrationConfig(dt=0.001, gamma=0., k0=0.01, k=0.1, stride=stride,
                                     num_iters=1000, max_iters=20000, stop_v_max=0.001,
                                     dt_max=100, prefer_orig_order=True,
                                     start_cap=0.1, final_cap=10)
     kwargs = {"min_peak_ratio": 1.1, "min_peak_sharpness": 1.1, "max_deviation": 0, "max_magnitude": 0}
-
-    
+    zero_inds = {w[1]:w[0] for w in warps.keys()}
+    pad_y = patch_size // 2 // stride
+    pad_x = patch_size // 2 // stride
     warped_mat = em.copy()
     len_others = len(others_to_transform)
     others_warped = [x.copy() for x in others_to_transform]
@@ -1021,44 +1030,231 @@ def sofima_stitch(em, patch_size=150, stride=75, warp_scale=1.1, others_to_trans
         others_warped[i][:, :, mid_frame] = others_to_transform[i][:, :, mid_frame]
         
     warped_mat[:, :, em.shape[2]//2] = em[:, :, em.shape[2]//2]
+    if direction == 0:
+        ranges = [range(em.shape[2]//2, 1, -1), range(em.shape[2]//2, em.shape[2]-1)]
+        inds = [-1, 1]
+    elif direction == -1:
+        ranges = [range(em.shape[2]-1, 0, -1)]
+        inds = [direction]
+    elif direction == 1:
+        ranges = [range(0, em.shape[2]-1)]
+        inds = [direction]
 
-    ranges = [range(em.shape[2]//2, 1, -1), range(em.shape[2]//2, em.shape[2]-1)]
-    
-    for ind, sign in enumerate([-1, 1]):
+    else:
+        ranges = []
+
+    for ind, sign in enumerate(inds):
+        x = None
+        skip = False
+        continue_ind = -1
         for i in ranges[ind]:
-            
+            # print("sofima ind", sign, i, i+sign, warp_scale)
             tile_1 = warped_mat[:,:,i]
             tile_2 = em[:,:,i + sign]
-            print(i, i+sign)
-            flow_1 = maskcorr.flow_field(tile_2, tile_1, patch_size, stride)
 
-            pad_y = patch_size // 2 // stride
-            pad_x = patch_size // 2 // stride
+            if i in zero_inds.keys():
+                continue_ind = zero_inds[i]-sign
 
-            flow_pad_1 = np.pad(flow_1, [[0, 0], [pad_y, pad_y - 1], [pad_x, pad_x - 1]], constant_values=np.nan)
-            ffield_clean_1 = clean_flow(flow_pad_1[:, np.newaxis, ...], **kwargs)
+                skip=True
+            if i == continue_ind:
+                skip = False
+            if not skip:
+                # print(i, i+sign)
+                flow_1 = maskcorr.flow_field(tile_2, tile_1, patch_size, stride)
 
-            x = np.zeros_like(ffield_clean_1)
-            x, _, _ = np.array(mesh.relax_mesh(x, ffield_clean_1, config))
-            x = np.array(x)[:,0,...]
+                flow_pad_1 = np.pad(flow_1, [[0, 0], [pad_y, pad_y - 1], [pad_x, pad_x - 1]], constant_values=np.nan)
+                ffield_clean_1 = clean_flow(flow_pad_1[:, np.newaxis, ...], **kwargs)
 
-            warped_img = ndimage_warp(
-                tile_2, 
-                warp_scale*x, 
-                stride=(stride,stride), 
-                work_size=(300,300), 
-                overlap=(0, 0)
-            )
-            warped_mat[..., i+sign] = warped_img
-
-            for j in range(len_others):
-                warped_other = ndimage_warp(
-                    others_to_transform[j][:, :, i+sign], 
+                x = np.zeros_like(ffield_clean_1)
+                x, _, _ = np.array(mesh.relax_mesh(x, ffield_clean_1, config))
+                x = np.array(x)[:,0,...]
+            print("SADFASDFADF", skip, i, i+sign, continue_ind, np.mean(x))
+            if x is not None:
+                warped_img = ndimage_warp(
+                    tile_2, 
                     warp_scale*x, 
-                    stride=(stride,stride), 
+                    stride=(256,256), 
                     work_size=(300,300), 
                     overlap=(0, 0)
                 )
-                others_warped[j][:, :, i+sign] = warped_other
+                warped_mat[..., i+sign] = warped_img
+
+                for j in range(len_others):
+                    warped_other = ndimage_warp(
+                        others_to_transform[j][:, :, i+sign], 
+                        warp_scale*x, 
+                        stride=(256,256), 
+                        work_size=(300,300), 
+                        overlap=(0, 0)
+                    )
+                    others_warped[j][:, :, i+sign] = warped_other
 
     return [warped_mat, *others_warped]
+
+def combined_stitch(em, errors, direction, patch_size = 160, stride = 40, alternate=True, others_to_transform=None):
+    from sofima.flow_field import JAXMaskedXCorrWithStatsCalculator
+    from sofima.flow_utils import clean_flow
+    from sofima.warp import ndimage_warp
+    from sofima import mesh
+    from sofima import map_utils
+    from connectomics.common import bounding_box
+    from sofima import flow_utils
+    others_to_transform = [] if others_to_transform is None else others_to_transform
+    maskcorr = JAXMaskedXCorrWithStatsCalculator()
+
+    config = mesh.IntegrationConfig(dt=0.001, gamma=0., k0=0.01, k=0.1, stride=stride,
+                                    num_iters=1000, max_iters=20000, stop_v_max=0.001,
+                                    dt_max=100, prefer_orig_order=True,
+                                    start_cap=0.1, final_cap=10)
+    
+    kwargs = {"min_peak_ratio": 1.1, "min_peak_sharpness": 1.1, "max_deviation": 0, "max_magnitude": 0}
+    err_pres = []
+    err_posts = []
+
+    i=0
+    flag = False
+
+    while i < errors.shape[0]:
+        if errors[i] and flag:
+            pre = i-1
+            while True:
+                i+=1
+                if i == errors.shape[0]:
+                    break
+                if not errors[i]:
+                    post = i
+                    err_pres.append(pre)
+                    err_posts.append(post)
+                    break
+        elif not errors[i]:
+            flag = True
+        i+=1
+    err_pres = np.array(err_pres)
+    err_posts = np.array(err_posts)
+
+    config = mesh.IntegrationConfig(dt=0.001, gamma=0., k0=0.01, k=0.1, stride=stride,
+                                    num_iters=1000, max_iters=20000, stop_v_max=0.001,
+                                    dt_max=100, prefer_orig_order=True,
+                                    start_cap=0.1, final_cap=10)
+    kwargs = {"min_peak_ratio": 1.1, "min_peak_sharpness": 1.1, "max_deviation": 0, "max_magnitude": 0}
+
+    pad_y = patch_size // 2 // stride
+    pad_x = patch_size // 2 // stride
+    warped_mat = em.copy()
+    warp_indices = []
+
+    len_others = len(others_to_transform)
+    others_warped = [x.copy() for x in others_to_transform]
+
+    if direction == 0:
+        ranges = [range(em.shape[2]//2, 1, -1), range(em.shape[2]//2, em.shape[2]-1)]
+        inds = [-1, 1]
+    elif direction == -1:
+        ranges = [range(em.shape[2]-1, 0, -1)]
+        inds = [direction]
+    elif direction == 1:
+        ranges = [range(0, em.shape[2]-1)]
+        inds = [direction]
+    else:
+        ranges = []
+    ct = 0
+    for ind, sign in enumerate(inds):
+        x = None
+        dropped = False
+        get_zero_warp = False
+
+        loc = -1
+        for i in ranges[ind]:
+
+            if i == loc+1:
+                dropped=False
+            if not dropped:
+                if i in err_posts and direction == -1:
+                    loc = int(err_pres[np.argwhere(err_posts == i)])
+                    tile_1_idx = i
+                    tile_2_idx =loc
+                    w = [loc, i]
+                    dropped = True
+
+                elif i in err_pres and direction > -1:
+                    loc = int(err_posts[np.argwhere(err_pres == i)])
+                    tile_2_idx = loc
+                    tile_1_idx = i
+                    w = [i, loc]
+                    dropped = True
+
+                elif not dropped: 
+                    tile_1_idx = i
+                    tile_2_idx = i + sign
+
+                if dropped:
+
+                    drop_ct = 0
+                    rng = w[1] - w[0]
+                    warp_indices = list(range(w[0]+1, w[1]))
+                else:
+                    tile_1 = np.squeeze(em[:, :, tile_1_idx])
+                    tile_2 = np.squeeze(em[:, :, tile_2_idx])
+
+                    flow_1 = maskcorr.flow_field(tile_2, tile_1, patch_size, stride)
+
+                    flow_pad_1 = np.pad(flow_1, [[0, 0], [pad_y, pad_y - 1], [pad_x, pad_x - 1]], constant_values=np.nan)
+                    ffield_clean_1 = clean_flow(flow_pad_1[:, np.newaxis, ...], **kwargs)
+
+                    tile_1_ds = tile_1.reshape(-1, 2, tile_1.shape[0]//2, 2).sum((-1, -3)) / 2
+                    tile_2_ds = tile_2.reshape(-1, 2, tile_2.shape[0]//2, 2).sum((-1, -3)) / 2
+
+                    flow_1 = maskcorr.flow_field(tile_2_ds, tile_1_ds, patch_size, stride)
+
+                    flow_pad_1 = np.pad(flow_1, [[0, 0], [pad_y, pad_y - 1], [pad_x, pad_x - 1]], constant_values=np.nan)
+                    ffield_clean_2 = clean_flow(flow_pad_1[:, np.newaxis, ...], **kwargs)
+
+                    box1x = bounding_box.BoundingBox(start=(0, 0, 0), size=(ffield_clean_1.shape[-1], ffield_clean_1.shape[-1], 1))
+                    box2x = bounding_box.BoundingBox(start=(0, 0, 0), size=(ffield_clean_2.shape[-1], ffield_clean_2.shape[-1], 1))
+
+                    resampled = 2*map_utils.resample_map(
+                        ffield_clean_2,  #
+                        box2x, box1x, 1 / .5, 1)
+
+                    ffield_com = flow_utils.reconcile_flows((resampled, ffield_clean_1), max_gradient=0, max_deviation=0, min_patch_size=0)
+
+                    x = np.zeros_like(ffield_com)
+                    x, _, _ = np.array(mesh.relax_mesh(x, ffield_com, config))
+                    x = np.array(x)[:,0,...]
+
+                ct += 1
+
+
+            if x is not None:
+                if dropped:
+                    warp_idx = tile_2_idx
+                    indx = i+sign#warp_indices[w_ind]
+                    s = stride
+                    scalar = 1 - ((drop_ct)) / (rng)
+                    drop_ct += 1
+                else:
+                    warp_idx = tile_2_idx
+                    s = stride
+                    scalar=1
+                    indx = i+sign
+                print(tile_1_idx, warp_idx, indx, dropped, scalar, np.mean(x*scalar))
+
+                warped_img = ndimage_warp(
+                    np.squeeze(warped_mat[:, :, warp_idx]),
+                    x*scalar, 
+                    stride=(s,s), 
+                    work_size=(300,300), 
+                    overlap=(0, 0)
+                )
+                warped_mat[..., indx] = warped_img
+
+                for j in range(len_others):
+                    warped_other = ndimage_warp(
+                        np.squeeze(others_warped[j][:, :, warp_idx]), 
+                        x*scalar, 
+                        stride=(s,s), 
+                        work_size=(300,300), 
+                        overlap=(0, 0)
+                    )
+                    others_warped[j][:, :, indx] = warped_other
+        return [warped_mat, *others_warped]

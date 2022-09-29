@@ -10,12 +10,11 @@ import agents.scripts as scripts
 from agents.swarm import Swarm
 import time
 import backoff
-import cv2        
-from scipy.ndimage.measurements import label
+from scipy.ndimage import label
 
 class Extension():
     def __init__(self, root_id, resolution, radius, unet_bound_mult, 
-                 device, save, nucleus_id, time_point, endp, namespace, point_id):
+                 device, save, nucleus_id, time_point, namespace, direction_test):
         if type(root_id) == 'list':
             self.root_id = [int(r) for r in root_id]
         else:
@@ -35,16 +34,22 @@ class Extension():
         self.time_point = time_point
         self.tic1 = time.time()
         self.namespace=namespace
-        self.point_id = point_id
-        
+        self.direction_test = direction_test
+
     def get_bounds(self,endp):
         self.endpoint = np.divide(endp, self.resolution).astype('int')
         self.bound = get_bounds(self.endpoint, self.radius)
+        # z_mult = 2 if self.direction_test else 1
         self.bound_EM = get_bounds(self.endpoint, self.radius, self.unet_bound_mult)
 
-    def gen_membranes(self, intern_pull=True, restitch_gaps=False, restitch_linear=False, radius=(200,200), conv_radius=3):
+    def gen_membranes(self, intern_pull=True, restitch_gaps=False):
+        ex_slices = 4
+
         tic = time.time()
         self.seg, self.em_big = self.get_data()
+        for i in range(1, self.seg.shape[2]):
+            if np.sum((self.seg[..., i-1] - self.seg[..., i]) != 0) < 1000:
+                self.seg[..., i-1] = 0
         toc=time.time()
         print("Seg EM Time", toc-tic)
         if type(self.seg) == str:
@@ -54,10 +59,38 @@ class Extension():
             if np.sum(self.seg) == 0:
                 self.merges={}
                 return -2
+        print("ONE", self.em_big.shape, self.bound_EM)
+        if self.direction_test:
+            self.middle_spot = self.seg.shape[2] // 2
+            above = np.sum(self.seg[:, :, self.middle_spot:] == self.root_id)
+            below = np.sum(self.seg[:, :, :self.middle_spot] == self.root_id)
+            print(above, below)
+            if above > below:
+                self.direction = -1
+                self.seg = self.seg[:, :, :self.middle_spot+ex_slices]
+                self.em_big = self.em_big[:, :, :self.middle_spot+ex_slices]
+                self.bound_EM[5] -= self.em_big.shape[2] - 2*ex_slices
+            elif below > above:
+                self.direction = 1
+                self.seg = self.seg[:, :, self.middle_spot - ex_slices:]
+                self.em_big = self.em_big[:, :,self.middle_spot - ex_slices:]
+                self.bound_EM[4] += self.em_big.shape[2] - 2*ex_slices
+            elif below == above and below > 0:
+                print("edge case!!")
+                self.direction = 0
+                self.direction_test = False
+            else:
+                print("ROOT ID NOT FOUND, CRASHING")
+                return 0
+        else:
+            self.direction = 0
+        print("TWO", self.em_big.shape, self.bound_EM, self.direction)
 
         ## I will not stand integer overflow any longer ##
         ## Remaps from really large ints very fast ##
-        self.seg_remap_dict = {i:k for i,k in enumerate(np.unique(self.seg))}
+        unique_seg = np.unique(self.seg)
+        self.seg_remap_dict = {i:k for i,k in enumerate(unique_seg)}
+        self.seg_remap_dict_r = {k:i for i,k in enumerate(unique_seg)}
         from_values = np.array(list(self.seg_remap_dict.values()))
         to_values = np.array(list(self.seg_remap_dict.keys()))
 
@@ -65,13 +98,17 @@ class Extension():
         idx = np.searchsorted(from_values, self.seg,sorter = sort_idx)
         self.seg_remap = to_values[sort_idx][idx]
 
-        self.mem_seg, self.seg, self.em, errors_gap, errors_linear = em_analysis(self.em_big, self.seg_remap, self.cnn_weights, self.unet_bound_mult, self.radius, self.device, self.bound_EM, restitch_gaps, restitch_linear)
+        self.mem_seg, self.seg, self.em, errors_gap, errors_linear = em_analysis(self.em_big, self.seg_remap, self.cnn_weights, self.device, self.bound_EM, intern_pull=intern_pull, restitch_gaps=restitch_gaps, direction=self.direction)
         self.errors = errors_gap + errors_linear
         self.mem_to_run = self.mem_seg#[int((unet_bound_mult-1)*radius[0]):int((unet_bound_mult+1)*radius[0]),
                    # int((unet_bound_mult-1)*radius[1]):int((unet_bound_mult+1)*radius[1]), :].astype(float)
-        print("Restitch", restitch_gaps, restitch_linear)
 
-        self.compute_vectors = scripts.precompute_membrane_vectors(self.mem_to_run, self.mem_to_run, conv_radius)
+        # self.seg = self.seg[:512,:512]
+        # self.em = self.em[:512,:512]
+        # self.mem_seg = self.mem_seg[:512,:512]
+        print("Restitch", restitch_gaps)
+
+        # self.compute_vectors = scripts.precompute_membrane_vectors(self.mem_to_run, self.mem_to_run, conv_radius)
 
         l, n = label(self.errors)
 
@@ -88,15 +125,100 @@ class Extension():
         print("Seg EM Restitch", time.time()-toc)
 
         return 1
-    def run_agents(self,nsteps=200):
+
+    def dist_transform_merge(self):
+        import scipy
+        import cc3d
+        ms = 1-scipy.ndimage.binary_dilation(self.mem_seg)
+
+        skel_ret = np.zeros(ms.shape)
+
+        for i in range(1, ms.shape[2]-1):
+            print(i, np.sum(ms[..., i]>0))
+
+            if np.sum(ms[..., i] > 0) < 1000:
+                skel_ret[..., i] = 0
+            skel_ret[..., i] = scipy.ndimage.distance_transform_edt(ms[:, :, i])
+            
+        morph = scipy.ndimage.morphological_laplace(skel_ret, (50, 50, 25))
+        l = scipy.ndimage.minimum_filter(morph, (5, 5, 3))
+
+        skel_ret= l < l.max()/8
+
+        seg_rid = self.seg_remap_dict_r[int(self.root_id[0])]
+        seg_bin = self.seg == seg_rid
+
+        seg_bin = cc3d.largest_k(
+        seg_bin, k=5, 
+        connectivity=26, delta=0,
+        )
+        seg_middle = seg_bin[self.radius[0], self.radius[1]]
+        seg_middle = seg_middle[seg_middle != 0]
+        seg_bin[seg_bin != np.argmax(np.bincount(seg_middle))] = 0
+        seg_bin = seg_bin > 0
+
+        structure = np.zeros((3,3,3))
+        structure[:, :, 1] = 1
+        structure[1, 1, :] = 1
+
+
+        results_dict = {}
+        edt_labelled = scipy.ndimage.label(skel_ret, structure=structure)[0]
+        edt_masked = edt_labelled.copy()
+        edt_masked[~seg_bin] = 0
+        counts = np.bincount(edt_masked.flatten())
+
+        map_dict = {i[0]: counts[i[0]] for i in np.argwhere(counts > 0)}
+        results_dict = {}
+
+        seg_pix = np.zeros_like(edt_labelled)
+        for k, v in map_dict.items():
+            if k == 0:
+                continue
+            seg_pix[edt_labelled == k] = k
+            bins = np.bincount(self.seg[edt_labelled == k])
+            bins_arg = np.argwhere(bins)
+            for b in bins_arg:
+                b = int(np.squeeze(b))
+                to_merge = b
+                if bins[b] < 10 or to_merge == 0 or to_merge == seg_rid:
+                    continue
+                try:
+                    results_dict[(seg_rid, to_merge)] += bins[b]*v
+
+                except:
+                    results_dict[(seg_rid, to_merge)] = bins[b]*v
+                    
+            results_thresh = {}
+            seg_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == seg_rid, axis=0), axis=0) > 0)
+
+            res_list  = list(results_dict.values())
+            if len(res_list) > 0:
+                max_val = np.max(res_list)
+                for k, v in results_dict.items():
+                    if v > .05*max_val:
+                        ext_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == k[1], axis=0), axis=0) > 0)
+                #         print(k, ext_direcs)
+                        if self.direction == 1:
+                            if np.max(seg_direcs) > np.min(ext_direcs):
+                                continue
+                        if self.direction == -1:
+                            if np.min(seg_direcs) <= np.min(ext_direcs):
+                                continue
+                        results_thresh[k] = v / max_val
+            else:
+                results_thresh = {}
+        self.merge_d = results_thresh
+
+    def run_agents(self,nsteps=200, n_agents=100):
         tic = time.time()
         sensor_list = [
             (agents.sensor.BrownianMotionSensor(), .1),
             (agents.sensor.PrecomputedSensor(), .2),
-            # (agents.sensor.MembraneSensor(self.mem_to_run), 0),
+            (agents.sensor.MembraneSensor(self.mem_to_run), 0),
             ]
-        self.agent_queue = self.create_queue(100, sampling_type="extension_ep")
-
+        self.agent_queue = self.create_queue(n_agents, sampling_type="extension_ep")
+        print("queue", self.agent_queue)
         num_agents = len(self.agent_queue)
         # Spawn agents
         count = 1
@@ -190,13 +312,21 @@ class Extension():
                 ct += 1
         if sampling_type == "extension_ep":
             q = []
-            center = data_shape[0]//2, data_shape[1]//2, data_shape[2]//2
+            if self.direction_test:
+                if self.direction == -1:
+                    center = data_shape[0]//2, data_shape[1]//2, data_shape[2]-1
+                elif self.direction == 1:
+                    center = data_shape[0]//2, data_shape[1]//2, 1
+            else:
+                center = data_shape[0]//2, data_shape[1]//2, data_shape[2]//2
+            print("CENTER", self.direction, center)
             data_size = data_shape[0] * data_shape[1]
             for _ in range(n_pts):
                 q.append([*center])
             return q
 
     def get_seg_slices(self):
+        import cv2        
         import  copy
         seg_mask = copy.deepcopy(self.seg)
         # import pickle
@@ -211,6 +341,7 @@ class Extension():
             seg_slice = seg_mask[:,:,z]
             if not np.any(seg_slice):
                 continue
+
             _, x, y, _ = cv2.connectedComponentsWithStats(seg_slice)
             max_label = np.argmax(y[1:, 4])+1
             seg_slice = x == max_label
@@ -238,33 +369,43 @@ class Extension():
         else:
             self.weights_dict = {}
         return True
-        
+    
+    def distance_merge_save(self):
+        self.n_errors = np.sum(self.errors > 0)
+        self.merges = scripts.position_merge(self.endpoint, self.root_id, self.merge_d, self.endpoint*self.resolution, self.n_errors, self.mean_errors, self.max_error, self.seg_remap_dict)
+        if self.merges.shape[0] > 0:
+            #merges.to_csv(f"./merges_root_{root_id}_{endpoint}.csv")
+            self.seg_ids = [str(x[:-1]) for x in self.merges.Extension]
+            weights = [str(x) for x in self.merges.Weight]
+            self.weights_dict = dict(zip(self.seg_ids, weights))
+        else:
+            self.weights_dict = {}
+            
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     def get_data(self, seg_or_sv = 'sv'):
         vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-        try:
-            em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
+        em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
 
-            if seg_or_sv == 'seg':
-                self.seg_root_id = self.public_root_id
-                seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
-            elif seg_or_sv == 'sv':
-                self.seg_root_id = self.root_id
-                seg = data_loader.supervoxels(*self.bound_EM)
-        except (exceptions.OutOfBoundsError, exceptions.EmptyVolumeException):
-            print("OOB")
-            return "Out Of Bounds", "Out Of Bounds"
+        if seg_or_sv == 'seg':
+            self.seg_root_id = self.public_root_id
+            seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
+        elif seg_or_sv == 'sv':
+            self.seg_root_id = self.root_id
+            seg = data_loader.supervoxels(*self.bound_EM)
+        # except (exceptions.OutOfBoundsError, exceptions.EmptyVolumeException):
+        #     print("OOB")
+        #     return "Out Of Bounds", "Out Of Bounds"
         return seg, em 
 
-def get_bounds(endpoint, radius, mult=1):
-    bound  = (endpoint[0] - int(mult*radius[0]), 
+def get_bounds(endpoint, radius, mult=1, z_mult=1):
+
+    bound  = [endpoint[0] - int(mult*radius[0]), 
             endpoint[0] + int(mult*radius[0]),
             endpoint[1] - int(mult*radius[1]),
             endpoint[1] + int(mult*radius[1]),
-            endpoint[2] - radius[2],
-            endpoint[2] + radius[2])
+            endpoint[2] -  int(z_mult*radius[2]),
+            endpoint[2] + int(z_mult*radius[2])]
     return bound
-
 
 def get_endpoint(ep_param, delete, endp, root_id, nucleus_id, time_point):
     if ep_param == 'sqs':
@@ -283,7 +424,7 @@ def get_endpoint(ep_param, delete, endp, root_id, nucleus_id, time_point):
         ep = [float(p) for p in endp]
     return root_id, nucleus_id, time_point, ep
 
-def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM, preprocess=False, intern_pull=True, restitch_gaps=True, restitch_linear=True):
+def em_analysis(em, seg, cnn_weights, device, bound_EM, intern_pull=True, restitch_gaps=True, direction=0, zero_threshold=.5):
 
     # mem_seg = np.asarray(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]])
     # if np.sum(mem_seg) == 0:
@@ -319,22 +460,42 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
     if restitch_gaps:
         errors_gap = scripts.detect_zero_locs(em, .25)
         errors_zero_template = scripts.detect_artifacts_template(em, errors_gap)
-        warp_dict_reg, warp_dict_clean, warp_dict_flow = scripts.get_warp(em, errors_zero_template,
-                                                                            patch_size=150,stride=75)
-        em, seg, mem_seg = scripts.correct_with_flow(em, warp_dict_reg, alternate=True,stride=75, others_to_transform=[seg, mem_seg])
-    
+
+        first_slide = np.min(np.argwhere(errors_gap==0))
+        last_slide = np.max(np.argwhere(errors_gap==0))
+        em = em[..., first_slide:last_slide+1]
+        mem_seg = mem_seg[..., first_slide:last_slide+1]
+        seg = seg[..., first_slide:last_slide+1]
+
+        em, mem_seg, seg = scripts.combined_stitch(em, errors_zero_template, direction,
+                                                    patch_size = 180, stride = 45, alternate=True,
+                                                    others_to_transform=[mem_seg, seg])
+        em = em[:560,:560]
+        mem_seg = mem_seg[:560,:560]
+        seg = seg[:560,:560]
     else:
         errors_gap = np.zeros(em.shape[2])
+        errors_zero_template = np.zeros(em.shape[2])
 
-    if restitch_linear:
-        em, seg, mem_seg = scripts.sofima_stitch(em, warp_scale=1.1, 
-                                                   patch_size=150, stride=75, 
-                                                   others_to_transform=[seg, mem_seg])
-        mem_seg[512] = 1
-        mem_seg[:, 512] =1
-    else:
-        errors_zero_template = {}
 
+    start=0
+    while True:
+        last_frame = em[:,:,start]
+        print(1, start, np.sum(last_frame == 0) / np.product(mem_seg.shape[:2]))
+        if np.sum(last_frame == 0) / np.product(mem_seg.shape[:2]) > zero_threshold:
+            mem_seg[:,:,start] = np.ones(mem_seg.shape[:2])
+        else:
+            break
+        start+=1
+    start=-1
+    while True:
+        print(start)
+        last_frame = em[:,:,start]
+        if np.sum(last_frame == 0) / np.product(mem_seg.shape[:2]) > zero_threshold:
+            mem_seg[:,:,start] = np.ones(mem_seg.shape[:2])
+        else:
+            break
+        start-=1
     return mem_seg, seg, em, errors_gap, errors_zero_template
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,

@@ -1,30 +1,30 @@
 from logging import root
 import pandas as pd
 import numpy as np
-#from tip_finding.tip_finding import endpoints_from_rid
 import time
 import aws.sqs as sqs
 import sys
 import backoff
+import datetime
 
-@backoff.on_exception(backoff.expo, Exception, max_tries=5)
+#@backoff.on_exception(backoff.expo, Exception, max_tries=5)
 def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
+    from tip_finding.tip_finding import endpoints_from_rid
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
     print("RID", root_id)
-    tips_thick, tips_thin, thru_branch_tips, tip_no_flat_thick, tip_no_flat_thin, flat_no_tip  = endpoints_from_rid(root_id)
+    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, all_flat  = endpoints_from_rid(root_id)
     if delete:
         root_id_msg.delete()
     if save == 'sqs':
         queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
 
-        entries=sqs.construct_endpoint_entries(tips_thick, root_id)
+        entries=sqs.construct_endpoint_entries(good_tips_thick, root_id)
         while(len(entries) > 0):
             entries_send = entries[:10]
             entries = entries[10:]
             sqs.send_batch(queue_url_endpoints, entries_send)
     elif save == 'nvq':
-        import datetime
         import neuvueclient as Client
         time_point = datetime.datetime.now()
 
@@ -32,20 +32,40 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
                     'root_id':str(root_id),
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
-        nvc_post_point(C, tips_thick.astype(int), "Justin", namespace, "error_tip_thick", 0, metadata)
-        nvc_post_point(C, tips_thin.astype(int), "Justin", namespace, "error_tip_thin", 0, metadata)
-        nvc_post_point(C, thru_branch_tips.astype(int), "Justin", namespace, "error_tip_branch", 0, metadata)
-        nvc_post_point(C, tip_no_flat_thick.astype(int), "Justin", namespace, "tip_thick", 0, metadata)
-        nvc_post_point(C, tip_no_flat_thin.astype(int), "Justin", namespace, "tip_thin", 0, metadata)
-        nvc_post_point(C, flat_no_tip.astype(int), "Justin", namespace, "errorloc", 0, metadata)
-        
-    return tips_thick 
+        time_point = time.time()#str(datetime.datetime.now())
+        if good_tips_thick.shape[0] > 0:
+            s1 = nvc_post_point(C, (good_tips_thick).astype(int), "Justin", namespace, "error_high_confidence_thick", time_point, metadata)
+        else:
+            s1 = -1
+        if good_tips_thin.shape[0] > 0:
+            s2 = nvc_post_point(C, (good_tips_thin).astype(int), "Justin", namespace, "error_high_confidence_thin", time_point, metadata)
+        else:
+            s2 = -1
+        if good_tips_bad_thick.shape[0] > 0:
+            s3 = nvc_post_point(C, (good_tips_bad_thick).astype(int), "Justin", namespace, "error_low_confidence_thick", time_point, metadata)
+        else:
+            s3 = -1
+        if good_tips_bad_thin.shape[0] > 0:
+            s4 = nvc_post_point(C, (good_tips_bad_thin).astype(int), "Justin", namespace, "error_low_confidence_thin", time_point, metadata)
+        else:
+            s4 = -1
+        if all_tips.shape[0] > 0:
+            s5 = nvc_post_point(C, (all_tips).astype(int), "Justin", namespace, "all_tips", time_point, metadata)
+        else:
+            s5 = -1
+        all_flat = np.array(all_flat)
+        if all_flat.shape[0] > 0:
+            s6 = nvc_post_point(C, (all_flat).astype(int), "Justin", namespace, "all_flats", time_point, metadata)
+        else:
+            s6 = -1
+        print(s1, s2, s3, s4, s5, s6)
+    return good_tips_thick 
 
-def run_endpoints(end, save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_endpoints")
+def run_endpoints(end, namespace="tips", save='nvq', delete=False):
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
     n_root_id = 0
     while n_root_id < end or end == -1:
-        endpoints(queue_url_rid, save, delete)
+        endpoints(queue_url_rid, namespace, save, delete)
         n_root_id+=1
     return 1
 
@@ -64,19 +84,23 @@ def get_points_nvc(filt_dict):
     C = Client.NeuvueQueue("https://queue.neuvue.io")
     return C.get_points(filt_dict)
 
-def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
-                   nucleus_id=0, time_point=0, threshold=8, namespace='Agents', point_id=-1):
+def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
+                   nucleus_id=0, time_point=0, namespace='Agents', direction_test=True):
     
+    if time_point == 0:
+        time_point = datetime.datetime.now()
+
     tic = time.time()
     from extension import Extension as Ext
+    from extension import save_merges
     ext = Ext(root_id, resolution, radius, unet_bound_mult, 
-    device, save, nucleus_id, time_point, endpoint, namespace, point_id)
+    device, save, nucleus_id, time_point, namespace, direction_test)
     toc = time.time()
     print("Ext Time", toc-tic)
     ext.get_bounds(endpoint)
     tic = time.time()
     print("Bounds Time", tic-toc)
-    success = ext.gen_membranes(restitch_gaps=True, restitch_linear=True)
+    success = ext.gen_membranes(restitch_gaps=True, restitch_linear=True, conv_radius=7)
     toc = time.time()
     print("Membranes Time", toc-tic)
 
@@ -87,62 +111,33 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(2,2,1), u
         ext.mem_seg = 0
         ext.n_errors = 61
         return ext, 0
-    ext.run_agents(nsteps=1000)
+    # ext.run_agents(nsteps=1000)
+    ext.dist_transform_merge()
+    ext.distance_merge_save()
+    duration = time.time()-ext.tic1
+
+    save_merges(ext.save, ext.merges, ext.root_id[0], ext.nucleus_id, ext.time_point, ext.endpoint,
+            ext.weights_dict, ext.bound, ext.bound_EM, ext.mem_seg, ext.device, duration, ext.n_errors, ext.namespace)
     return ext, 1
 
-def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(2,2,1), unet_bound_mult=1.5, save='nvq', device='cpu'):
-    print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device)
-    points = get_points_nvc({'__v':1,"namespace":namespace, "type":["error_high_confidence_thick", "error_high_confidence_thin"]})
-    print("points", points)
+def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1.5, save='nvq', device='cpu', direction_test=True):
+    print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device, direction_test)
+    points = get_points_nvc({"namespace":namespace})
+    # print("points", points)s
     for p in range(points.shape[0]):
         print(points.iloc[p].coordinate)
         row = points.iloc[p]
         rid = int(row.metadata['root_id'])
         pt = np.array(row.coordinate).astype(int)
-        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_agt, point_id=row.name)
+        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_agt, direction_test=direction_test)
         if s == 0:
             ext.save_agent_merges(True)
         ext.save_agent_merges()
         print("Done", rid, p, ext.merges)
     return 1
 
-
-def segment_series(root_id, endpoints, radius=(200,200,20), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu', nucleus_id=0, time_point=0, threshold=8):
-    from extension import Extension as Ext
-
-    hit_ids = [root_id]
-    current_root_id = root_id
-    
-    merges = pd.DataFrame()
-    ext = Ext(root_id, resolution, radius, unet_bound_mult, 
-              device, save, nucleus_id, time_point)
-
-    while True:
-        try:
-            endpoint = endpoints.pop()
-        except IndexError:
-            merges.to_csv("./merges_series")
-            return merges
-        success = ext.gen_membranes(endpoint)
-        ext.run_agents()
-        initial_merges = ext.merges
-        merges = pd.concat([merges, initial_merges])
-        initial_merges = initial_merges[initial_merges.Weight > threshold]
-        initial_merges = initial_merges[initial_merges.Synapse_filter == False]
-        initial_merges = initial_merges[initial_merges.Polarity_filter == False]
-        initial_merges = initial_merges[np.logical_not(initial_merges.Extension.isin(hit_ids))]
-
-        if initial_merges.shape[0] == 0:
-            return
-        highest_val = initial_merges.sort_values('Weight', ascending=False).iloc[0]
-        current_root_id = highest_val.Extension
-        hit_ids.append(current_root_id)
-        next_endpoints = tip_finder_decimation(hit_ids)
-        for ep in next_endpoints:
-            endpoints.append(ep)
-
 def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',
-                   nucleus_id=0, time_point=0, threshold=8):
+                   nucleus_id=0, time_point=0):
     from extension import Extension as Ext
 
     ct=0
@@ -156,7 +151,6 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
         filt_df = gt_df[gt_df.R == root_id]
         print("Shape", filt_df.shape[0])
         for i in range(filt_df.shape[0]):
-            tic = time.time()
             row = filt_df.iloc[i]
             endpoint = eval(row.G1)
             ext, s = segment_points(root_id, endpoint, radius, resolution)
@@ -166,9 +160,6 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
             merges = pd.concat([merges, ext.merges])
             ct+=1
 
-def sqs_agents(radius=(200,200,20), delete=False):
-    root_id, nucleus_id, time_point, endp = utils.get_endpoint('sqs', delete, endp, root_id, nucleus_id, time_point)
-    merges = drive()
 
 if __name__ == "__main__":
     # Wraps the command line arguments
@@ -178,6 +169,7 @@ if __name__ == "__main__":
         end = int(sys.argv[2])
         save = sys.argv[3]
         delete = bool(sys.argv[4])
-        run_endpoints(end, save, delete)
+        namespace=str(sys.argv[5])
+        run_endpoints(end, namespace, save, delete)
     if mode == 'agents':
         run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4], rez=np.array([8,8,40]))
