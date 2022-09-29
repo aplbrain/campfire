@@ -15,7 +15,7 @@ from scipy.ndimage.measurements import label
 
 class Extension():
     def __init__(self, root_id, resolution, radius, unet_bound_mult, 
-                 device, save, nucleus_id, time_point, endp, namespace):
+                 device, save, nucleus_id, time_point, endp, namespace, point_id):
         if type(root_id) == 'list':
             self.root_id = [int(r) for r in root_id]
         else:
@@ -35,6 +35,7 @@ class Extension():
         self.time_point = time_point
         self.tic1 = time.time()
         self.namespace=namespace
+        self.point_id = point_id
         
     def get_bounds(self,endp):
         self.endpoint = np.divide(endp, self.resolution).astype('int')
@@ -48,8 +49,10 @@ class Extension():
         print("Seg EM Time", toc-tic)
         if type(self.seg) == str:
             if self.seg == "Out Of Bounds":
+                self.merges={}
                 return -1
             if np.sum(self.seg) == 0:
+                self.merges={}
                 return -2
 
         ## I will not stand integer overflow any longer ##
@@ -74,7 +77,6 @@ class Extension():
 
         lab_counts = []
         for i in range(1,n+1):
-            print(i)
             lab_counts.append(np.sum(l==i))
         if len(lab_counts) > 0:
             self.max_error = np.max(lab_counts)
@@ -127,10 +129,10 @@ class Extension():
 
         print("Merge Time", merge_time, self.seg.dtype)
 
-    def save_agent_merges(self):
+    def save_agent_merges(self, error=False):
         duration = time.time()-self.tic1
         save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
-                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace)
+                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace, self.point_id, error)
    
     # Create a queue out of any of the above sampling methods
     def create_queue(self, n_pts, sampling_type="extension_only"):
@@ -199,7 +201,6 @@ class Extension():
         seg_mask = copy.deepcopy(self.seg)
         # import pickle
         # pickle.dump(seg_mask, open("seg_mask.p", "wb"))
-        print(self.seg_root_id, seg_mask[200,200,20], seg_mask.shape)
 
         seg_mask = np.in1d(seg_mask, self.seg_root_id).reshape(seg_mask.shape).astype(np.uint8)
         sizes_list = []
@@ -337,7 +338,7 @@ def em_analysis(em, seg, cnn_weights, unet_bound_mult, radius, device, bound_EM,
     return mem_seg, seg, em, errors_gap, errors_zero_template
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
-                bound_EM, mem_seg, device, duration, n_errors, namespace):
+                bound_EM, mem_seg, device, duration, n_errors, namespace, point_id, error):
     if type(root_id) == list:
         root_id = root_id[0]
     if save == "pd":
@@ -346,13 +347,16 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
     if save == "nvq":
         import neuvueclient as Client
         print("DURATION", duration, root_id, endpoint, "\n")
-        metadata = {'time':str(time_point), 
-                    'duration':str(duration), 
-                    'device':device,
-                    'bbox':[str(x) for x in bound], 
-                    'bbox_em':[str(x) for x in bound_EM],
-                    'n_errors':str(n_errors),
-                    }
+        if error:
+            metadata={'oob':True}
+        else:
+            metadata = {'time':str(time_point), 
+                        'duration':str(duration), 
+                        'device':device,
+                        'bbox':[str(x) for x in bound], 
+                        'bbox_em':[str(x) for x in bound_EM],
+                        'n_errors':str(n_errors),
+                        }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         end = [int(x) for x in endpoint]
         if type(root_id) == int:
@@ -360,7 +364,10 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
         elif type(root_id) == list or type(root_id) == np.ndarray:
             root_id = str(root_id[0])
         print("Posted", str(root_id), str(nucleus_id), end, weights_dict, metadata)
+        if len(merges) == 0:
+            weights_dict={}
         C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata) 
+        C.patch_point(point_id, agents_status='extension_completed')
         # pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
 
         # pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
