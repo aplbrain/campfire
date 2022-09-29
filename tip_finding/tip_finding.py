@@ -478,7 +478,7 @@ def find_local_diffs(graphs, normals, mesh_obj, sums_mask, radius=50, endpoint=N
         dps[i] = np.dot(-c_diff_min, derivative )
     return dps, dps_diff, vecs_diff, vecs_nearest, direcs
 
-def get_flat_regions(mesh, minsize=100000, n_iter=6):
+def get_flat_regions(mesh, minsize=100000, n_iter=3):
 
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
     mesh_coords = mesh_obj.vertices[mesh_obj.faces]
