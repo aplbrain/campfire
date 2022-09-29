@@ -39,7 +39,7 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
         nvc_post_point(C, all_tips.astype(int), "Justin", namespace, "all_tips", 0, metadata)
         nvc_post_point(C, all_flat.astype(int), "Justin", namespace, "all_flats", 0, metadata)
         
-    return tips_thick 
+    return good_tips_thick 
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
     queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
