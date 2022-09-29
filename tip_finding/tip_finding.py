@@ -478,7 +478,7 @@ def find_local_diffs(graphs, normals, mesh_obj, sums_mask, radius=50, endpoint=N
         dps[i] = np.dot(-c_diff_min, derivative )
     return dps, dps_diff, vecs_diff, vecs_nearest, direcs
 
-def get_flat_regions(mesh, minsize=100000, n_iter=6):
+def get_flat_regions(mesh, minsize=100000, n_iter=3):
 
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
     mesh_coords = mesh_obj.vertices[mesh_obj.faces]
@@ -557,11 +557,13 @@ def get_flat_regions(mesh, minsize=100000, n_iter=6):
             new_tris, f = get_next(curr_nodes, face_ad_sub, face_ad_sub_flat)
             curr_nodes.extend(new_tris)
             tris_list.extend(new_tris)
-            
+        if len(tris_list)  == 0:
+            continue
         new_tris =  np.array(tris_list)
         
         flat_mask_faces = np.abs(normals[original_nodes][:, 2]) == 1
         face_z = mesh_coords[original_nodes][flat_mask_faces]
+
         
         if face_z.shape[0] == 0:
             flat_mask[s] = False
@@ -773,6 +775,10 @@ def endpoints_from_rid(root_id, center_collapse=True):
     )
     mesh = vol.mesh.get(str(root_id))
     mesh = mesh[int(root_id)]
+    mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
+    trimesh.repair.fix_normals(mesh_obj)
+    mesh_obj.fill_holes()
+
     def get_soma(root_id:str):
         cave_client = CAVEclient('minnie65_phase3_v1')
         soma = cave_client.materialize.query_table(
@@ -787,7 +793,7 @@ def endpoints_from_rid(root_id, center_collapse=True):
     else:
         soma_center=None
         print(root_id, "No Soma Found")
-    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means = get_endpoints(mesh, soma_center)
+    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means = get_endpoints(mesh_obj, soma_center)
 
     return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means 
 
