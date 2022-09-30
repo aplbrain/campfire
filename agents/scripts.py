@@ -80,7 +80,7 @@ def position_merge(ep, root_id, merge_d, endpoint_nm, n_errors, mean_err, max_er
             soma_filter = False
             if int(k[0]) in root_id:
                 extension = int(k[1])
-                weight = int(merges[k])
+                weight = float(merges[k])
             elif int(k[1]) in root_id:
                 extension = int(k[0])
                 weight = float(merges[k])
