@@ -100,7 +100,7 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), 
     ext.get_bounds(endpoint)
     tic = time.time()
     print("Bounds Time", tic-toc)
-    success = ext.gen_membranes(restitch_gaps=True, restitch_linear=True, conv_radius=7)
+    success = ext.gen_membranes(intern_pull=False, restitch_gaps=True)
     toc = time.time()
     print("Membranes Time", toc-tic)
 
@@ -116,11 +116,11 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), 
     ext.distance_merge_save()
     duration = time.time()-ext.tic1
 
-    save_merges(ext.save, ext.merges, ext.root_id[0], ext.nucleus_id, ext.time_point, ext.endpoint,
-            ext.weights_dict, ext.bound, ext.bound_EM, ext.mem_seg, ext.device, duration, ext.n_errors, ext.namespace)
+    #save_merges(ext.save, ext.merges, ext.root_id[0], ext.nucleus_id, ext.time_point, ext.endpoint,
+            #ext.weights_dict, ext.bound, ext.bound_EM, ext.mem_seg, ext.device, duration, ext.n_errors, ext.namespace)
     return ext, 1
 
-def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1.5, save='nvq', device='cpu', direction_test=True):
+def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1, save='nvq', device='cpu', direction_test=True):
     print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device, direction_test)
     points = get_points_nvc({"namespace":namespace})
     # print("points", points)s
@@ -128,8 +128,10 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
         print(points.iloc[p].coordinate)
         row = points.iloc[p]
         rid = int(row.metadata['root_id'])
+        namespace_save = f"{namespace_agt}_{row.type[-1]}"
+        print("NS", namespace_save)
         pt = np.array(row.coordinate).astype(int)
-        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_agt, direction_test=direction_test)
+        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_save, direction_test=direction_test)
         if s == 0:
             ext.save_agent_merges(True)
         ext.save_agent_merges()

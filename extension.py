@@ -147,14 +147,18 @@ class Extension():
 
         seg_rid = self.seg_remap_dict_r[int(self.root_id[0])]
         seg_bin = self.seg == seg_rid
-
         seg_bin = cc3d.largest_k(
         seg_bin, k=5, 
         connectivity=26, delta=0,
         )
         seg_middle = seg_bin[self.radius[0], self.radius[1]]
         seg_middle = seg_middle[seg_middle != 0]
-        seg_bin[seg_bin != np.argmax(np.bincount(seg_middle))] = 0
+        bc_seg = np.bincount(seg_middle)
+        if len(bc_seg) == 0:
+            print("Major Shift")
+            self.merge_d = {}
+            return
+        seg_bin[seg_bin != np.argmax(bc_seg)] = 0
         seg_bin = seg_bin > 0
 
         structure = np.zeros((3,3,3))
@@ -162,7 +166,6 @@ class Extension():
         structure[1, 1, :] = 1
 
 
-        results_dict = {}
         edt_labelled = scipy.ndimage.label(skel_ret, structure=structure)[0]
         edt_masked = edt_labelled.copy()
         edt_masked[~seg_bin] = 0
@@ -254,7 +257,7 @@ class Extension():
     def save_agent_merges(self, error=False):
         duration = time.time()-self.tic1
         save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
-                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace, self.point_id, error)
+                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace)
    
     # Create a queue out of any of the above sampling methods
     def create_queue(self, n_pts, sampling_type="extension_only"):
@@ -428,6 +431,7 @@ def em_analysis(em, seg, cnn_weights, device, bound_EM, intern_pull=True, restit
 
     # mem_seg = np.asarray(vol[bound_EM[0]:bound_EM[1], bound_EM[2]:bound_EM[3],bound_EM[4]:bound_EM[5]])
     # if np.sum(mem_seg) == 0:
+    print("PULL", intern_pull)
     if intern_pull==False:
         if cnn_weights == 'thick':
             mem_seg = membranes.segment_membranes(em, pth="./membrane_detection/best_metric_model_segmentation2d_dict.pth", device_s=device)
@@ -499,7 +503,7 @@ def em_analysis(em, seg, cnn_weights, device, bound_EM, intern_pull=True, restit
     return mem_seg, seg, em, errors_gap, errors_zero_template
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
-                bound_EM, mem_seg, device, duration, n_errors, namespace, point_id, error):
+                bound_EM, mem_seg, device, duration, n_errors, namespace):
     if type(root_id) == list:
         root_id = root_id[0]
     if save == "pd":
@@ -508,6 +512,7 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
     if save == "nvq":
         import neuvueclient as Client
         print("DURATION", duration, root_id, endpoint, "\n")
+        error=False
         if error:
             metadata={'oob':True}
         else:
@@ -527,8 +532,8 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
         print("Posted", str(root_id), str(nucleus_id), end, weights_dict, metadata)
         if len(merges) == 0:
             weights_dict={}
-        C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata) 
-        C.patch_point(point_id, agents_status='extension_completed')
+        C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata, namespace) 
+        #C.patch_point(point_id, agents_status='extension_completed')
         # pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
 
         # pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
