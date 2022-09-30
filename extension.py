@@ -47,6 +47,9 @@ class Extension():
 
         tic = time.time()
         self.seg, self.em_big = self.get_data()
+        if self.seg is None:
+            print("EMPTY VOLUME")
+            return 0
         for i in range(1, self.seg.shape[2]):
             if np.sum((self.seg[..., i-1] - self.seg[..., i]) != 0) < 1000:
                 self.seg[..., i-1] = 0
@@ -386,19 +389,22 @@ class Extension():
             
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     def get_data(self, seg_or_sv = 'sv'):
-        vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-        em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
+        try:
+            vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
+            em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
 
-        if seg_or_sv == 'seg':
-            self.seg_root_id = self.public_root_id
-            seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
-        elif seg_or_sv == 'sv':
-            self.seg_root_id = self.root_id
-            seg = data_loader.supervoxels(*self.bound_EM)
+            if seg_or_sv == 'seg':
+                self.seg_root_id = self.public_root_id
+                seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
+            elif seg_or_sv == 'sv':
+                self.seg_root_id = self.root_id
+                seg = data_loader.supervoxels(*self.bound_EM)
         # except (exceptions.OutOfBoundsError, exceptions.EmptyVolumeException):
         #     print("OOB")
         #     return "Out Of Bounds", "Out Of Bounds"
-        return seg, em 
+            return seg, em 
+        except:
+            return None, None
 
 def get_bounds(endpoint, radius, mult=1, z_mult=1):
 

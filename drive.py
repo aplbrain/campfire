@@ -122,14 +122,14 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), 
 
 def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1, save='nvq', device='cpu', direction_test=True):
     print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device, direction_test)
-    points = get_points_nvc({"namespace":namespace})
+    points = get_points_nvc({"namespace":namespace, 'type':['error_high_confidence_thick', 'error_high_confidence_thin'], 'agents_status':'open'})
     # print("points", points)s
     for p in range(points.shape[0]):
         row = points.iloc[p]
         rid = int(row.metadata['root_id'])
-        print(p, points.iloc[p].coordinate, rid, namespace_save)
 
         namespace_save = f"{namespace_agt}_{row.type[-1]}"
+        print(p, points.iloc[p].coordinate, rid, namespace_save)
         pt = np.array(row.coordinate).astype(int)
         ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_save, direction_test=direction_test)
         if s == 0:
