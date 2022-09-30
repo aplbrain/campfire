@@ -14,7 +14,7 @@ from scipy.ndimage import label
 
 class Extension():
     def __init__(self, root_id, resolution, radius, unet_bound_mult, 
-                 device, save, nucleus_id, time_point, namespace, direction_test):
+                 device, save, nucleus_id, time_point, namespace, direction_test, point_id):
         if type(root_id) == 'list':
             self.root_id = [int(r) for r in root_id]
         else:
@@ -28,6 +28,7 @@ class Extension():
         self.seg_root_id = -1
         self.device = device
         self.cnn_weights = 'thick'
+        self.point_id=point_id
         # self.cnn_weights = 'thin'
         self.save = save
         self.nucleus_id = nucleus_id
@@ -260,7 +261,7 @@ class Extension():
     def save_agent_merges(self, error=False):
         duration = time.time()-self.tic1
         save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
-                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace)
+                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace, self.point_id)
    
     # Create a queue out of any of the above sampling methods
     def create_queue(self, n_pts, sampling_type="extension_only"):
@@ -509,7 +510,7 @@ def em_analysis(em, seg, cnn_weights, device, bound_EM, intern_pull=True, restit
     return mem_seg, seg, em, errors_gap, errors_zero_template
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
-                bound_EM, mem_seg, device, duration, n_errors, namespace):
+                bound_EM, mem_seg, device, duration, n_errors, namespace, points_id):
     if type(root_id) == list:
         root_id = root_id[0]
     if save == "pd":
@@ -539,7 +540,7 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
         if len(merges) == 0:
             weights_dict={}
         C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata, namespace) 
-        #C.patch_point(point_id, agents_status='extension_completed')
+        C.patch_point(point_id, agents_status='extension_completed')
         # pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
 
         # pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
