@@ -1150,7 +1150,7 @@ def combined_stitch(em, errors, direction, patch_size = 160, stride = 40, altern
         ranges = [range(em.shape[2]//2, 1, -1), range(em.shape[2]//2, em.shape[2]-1)]
         inds = [-1, 1]
     elif direction == -1:
-        ranges = [range(em.shape[2]-1, 0, -1)]
+        ranges = [range(em.shape[2]-1, 1, -1)]
         inds = [direction]
     elif direction == 1:
         ranges = [range(0, em.shape[2]-1)]
@@ -1161,7 +1161,6 @@ def combined_stitch(em, errors, direction, patch_size = 160, stride = 40, altern
     for ind, sign in enumerate(inds):
         x = None
         dropped = False
-        get_zero_warp = False
 
         loc = -1
         for i in ranges[ind]:
@@ -1224,7 +1223,6 @@ def combined_stitch(em, errors, direction, patch_size = 160, stride = 40, altern
 
                 ct += 1
 
-
             if x is not None:
                 if dropped:
                     warp_idx = tile_2_idx
@@ -1238,7 +1236,8 @@ def combined_stitch(em, errors, direction, patch_size = 160, stride = 40, altern
                     scalar=1
                     indx = i+sign
                 print(tile_1_idx, warp_idx, indx, dropped, scalar, np.mean(x*scalar))
-
+                if warp_idx > warped_mat.shape[2]:
+                    warp_idx =  warped_mat.shape[2] - 1
                 warped_img = ndimage_warp(
                     np.squeeze(warped_mat[:, :, warp_idx]),
                     x*scalar, 
