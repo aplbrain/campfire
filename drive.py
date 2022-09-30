@@ -84,7 +84,7 @@ def get_points_nvc(filt_dict):
     C = Client.NeuvueQueue("https://queue.neuvue.io")
     return C.get_points(filt_dict)
 
-def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
+def segment_points(root_id, endpoint, point_id, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, namespace='Agents', direction_test=True):
     
     if time_point == 0:
@@ -94,7 +94,7 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), 
     from extension import Extension as Ext
     from extension import save_merges
     ext = Ext(root_id, resolution, radius, unet_bound_mult, 
-    device, save, nucleus_id, time_point, namespace, direction_test)
+    device, save, nucleus_id, time_point, namespace, direction_test, point_id)
     toc = time.time()
     print("Ext Time", toc-tic)
     ext.get_bounds(endpoint)
@@ -122,7 +122,8 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), 
 
 def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1, save='nvq', device='cpu', direction_test=True):
     print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device, direction_test)
-    points = get_points_nvc({"namespace":namespace})
+    points = get_points_nvc({"namespace":namespace, "agents_status":'open'})
+    idx = points.index
     # print("points", points)s
     for p in range(points.shape[0]):
         row = points.iloc[p]
@@ -131,7 +132,7 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
 
         namespace_save = f"{namespace_agt}_{row.type[-1]}"
         pt = np.array(row.coordinate).astype(int)
-        ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_save, direction_test=direction_test)
+        ext, s = segment_points(rid, pt, idx.iloc[p], radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_save, direction_test=direction_test)
         if s == 0:
             ext.save_agent_merges(True)
         ext.save_agent_merges()
