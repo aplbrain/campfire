@@ -114,7 +114,7 @@ def segment_points(root_id, endpoint, radius=(200,200,30), resolution=(8,8,40), 
     # ext.run_agents(nsteps=1000)
     ext.dist_transform_merge()
     ext.distance_merge_save()
-    duration = time.time()-ext.tic1
+    # duration = time.time()-ext.tic1
 
     #save_merges(ext.save, ext.merges, ext.root_id[0], ext.nucleus_id, ext.time_point, ext.endpoint,
             #ext.weights_dict, ext.bound, ext.bound_EM, ext.mem_seg, ext.device, duration, ext.n_errors, ext.namespace)
@@ -125,11 +125,11 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
     points = get_points_nvc({"namespace":namespace})
     # print("points", points)s
     for p in range(points.shape[0]):
-        print(points.iloc[p].coordinate)
         row = points.iloc[p]
         rid = int(row.metadata['root_id'])
+        print(p, points.iloc[p].coordinate, rid, namespace_save)
+
         namespace_save = f"{namespace_agt}_{row.type[-1]}"
-        print("NS", namespace_save)
         pt = np.array(row.coordinate).astype(int)
         ext, s = segment_points(rid, pt, radius=radius, resolution=rez, unet_bound_mult=unet_bound_mult, save=save, device=device, namespace=namespace_save, direction_test=direction_test)
         if s == 0:
