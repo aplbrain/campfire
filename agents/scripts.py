@@ -69,7 +69,7 @@ def position_merge(ep, root_id, merge_d, endpoint_nm, n_errors, mean_err, max_er
         # soma_table = get_soma(m_list)
         toc = time.time()
         print("soma time", toc - tic)
-        polarity_table = is_dendrite(endpoint_nm, m_list)
+        #polarity_table = is_dendrite(endpoint_nm, m_list)
         tic = time.time()
         print("polarity time", tic - toc)
         # thresholds_dict, thresholds_list = trajectory_filter(root_id, m_list, seg)
@@ -90,20 +90,20 @@ def position_merge(ep, root_id, merge_d, endpoint_nm, n_errors, mean_err, max_er
                 continue
             # if soma_table.get_soma(extension) > 0:
             #     soma_filter=True
-            mixed_polarity_root, n_pre_root, n_post_root, n_pre_seg, n_post_seg, mixed_polarity_seg = polarity_table.dendrite_filt(root_id[0], extension)
+         #   mixed_polarity_root, n_pre_root, n_post_root, n_pre_seg, n_post_seg, mixed_polarity_seg = polarity_table.dendrite_filt(root_id[0], extension)
 
             d = {
                 "EP":[ep], 
                 "Root_id":str([root_id[0]]), 
                 "Extension":str(extension)+"/", 
                 "Weight":weight, 
-                "mix_root": mixed_polarity_root, 
-                "n_pre_root":n_pre_root, 
-                "n_post_root":n_post_root, 
-                "n_pre_seg":n_pre_seg, 
-                "n_post_seg":n_post_seg,
-                "mix_seg":mixed_polarity_seg,
-                "Soma_filter":soma_filter,
+               # "mix_root": mixed_polarity_root, 
+               # "n_pre_root":n_pre_root, 
+               # "n_post_root":n_post_root, 
+               # "n_pre_seg":n_pre_seg, 
+               # "n_post_seg":n_post_seg,
+               # "mix_seg":mixed_polarity_seg,
+               # "Soma_filter":soma_filter,
                 "Error_num":n_errors,
                 "Error_max":max_err,
                 "Error_mean":mean_err,

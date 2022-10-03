@@ -50,7 +50,7 @@ class Extension():
         self.seg, self.em_big = self.get_data()
         if self.seg is None:
             print("EMPTY VOLUME")
-            return 0
+            return -3
         for i in range(1, self.seg.shape[2]):
             if np.sum((self.seg[..., i-1] - self.seg[..., i]) != 0) < 1000:
                 self.seg[..., i-1] = 0
@@ -177,6 +177,7 @@ class Extension():
 
         map_dict = {i[0]: counts[i[0]] for i in np.argwhere(counts > 0)}
         results_dict = {}
+        results_thresh = {}
 
         seg_pix = np.zeros_like(edt_labelled)
         for k, v in map_dict.items():
@@ -196,25 +197,24 @@ class Extension():
                 except:
                     results_dict[(seg_rid, to_merge)] = bins[b]*v
                     
-            results_thresh = {}
-            seg_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == seg_rid, axis=0), axis=0) > 0)
+        seg_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == seg_rid, axis=0), axis=0) > 0)
 
-            res_list  = list(results_dict.values())
-            if len(res_list) > 0:
-                max_val = np.max(res_list)
-                for k, v in results_dict.items():
-                    if v > .05*max_val:
-                        ext_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == k[1], axis=0), axis=0) > 0)
+        res_list  = list(results_dict.values())
+        if len(res_list) > 0:
+            max_val = np.max(res_list)
+            for k, v in results_dict.items():
+                if v > .05*max_val:
+                    ext_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == k[1], axis=0), axis=0) > 0)
                 #         print(k, ext_direcs)
-                        if self.direction == 1:
-                            if np.max(seg_direcs) > np.min(ext_direcs):
-                                continue
-                        if self.direction == -1:
-                            if np.min(seg_direcs) <= np.min(ext_direcs):
-                                continue
-                        results_thresh[k] = v / max_val
-            else:
-                results_thresh = {}
+                    if self.direction == 1:
+                        if np.max(seg_direcs) > np.min(ext_direcs):
+                            continue
+                    if self.direction == -1:
+                        if np.min(seg_direcs) <= np.min(ext_direcs):
+                            continue
+                    results_thresh[k] = v / max_val
+        else:
+            results_thresh = {}
         self.merge_d = results_thresh
 
     def run_agents(self,nsteps=200, n_agents=100):
@@ -259,6 +259,11 @@ class Extension():
         print("Merge Time", merge_time, self.seg.dtype)
 
     def save_agent_merges(self, error=False):
+        if error:
+            import neuvueclient as Client
+            C = Client.NeuvueQueue("https://queue.neuvue.io")
+            C.patch_point(self.point_id, agents_status='extension_completed')
+            return
         duration = time.time()-self.tic1
         save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
                     self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace, self.point_id)
@@ -540,7 +545,7 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
         if len(merges) == 0:
             weights_dict={}
         C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata, namespace) 
-        C.patch_point(point_id, agents_status='extension_completed')
+        C.patch_point(points_id, agents_status='extension_completed')
         # pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
 
         # pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))
