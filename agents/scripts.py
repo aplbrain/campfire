@@ -1236,7 +1236,7 @@ def combined_stitch(em, errors, direction, patch_size = 160, stride = 40, altern
                     scalar=1
                     indx = i+sign
                 print(tile_1_idx, warp_idx, indx, dropped, scalar, np.mean(x*scalar))
-                if warp_idx > warped_mat.shape[2]:
+                if warp_idx > warped_mat.shape[2] - 1:
                     warp_idx =  warped_mat.shape[2] - 1
                 warped_img = ndimage_warp(
                     np.squeeze(warped_mat[:, :, warp_idx]),

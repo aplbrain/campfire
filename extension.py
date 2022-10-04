@@ -63,12 +63,10 @@ class Extension():
             if np.sum(self.seg) == 0:
                 self.merges={}
                 return -2
-        print("ONE", self.em_big.shape, self.bound_EM)
         if self.direction_test:
             self.middle_spot = self.seg.shape[2] // 2
             above = np.sum(self.seg[:, :, self.middle_spot:] == self.root_id)
             below = np.sum(self.seg[:, :, :self.middle_spot] == self.root_id)
-            print(above, below)
             if above > below:
                 self.direction = -1
                 self.seg = self.seg[:, :, :self.middle_spot+ex_slices]
@@ -88,7 +86,6 @@ class Extension():
                 return 0
         else:
             self.direction = 0
-        print("TWO", self.em_big.shape, self.bound_EM, self.direction)
 
         ## I will not stand integer overflow any longer ##
         ## Remaps from really large ints very fast ##
