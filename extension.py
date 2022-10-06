@@ -83,7 +83,7 @@ class Extension():
                 self.direction_test = False
             else:
                 print("ROOT ID NOT FOUND, CRASHING")
-                return 0
+                return -1
         else:
             self.direction = 0
 
