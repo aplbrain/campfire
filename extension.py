@@ -255,11 +255,13 @@ class Extension():
 
         print("Merge Time", merge_time, self.seg.dtype)
 
-    def save_agent_merges(self, error=False):
-        if error:
+    def save_agent_merges(self, error=1):
+        if error < 0:
             import neuvueclient as Client
             C = Client.NeuvueQueue("https://queue.neuvue.io")
             C.patch_point(self.point_id, agents_status='extension_completed')
+            save_merges(self.save, {}, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
+                    {}, self.bound, self.bound_EM, 0, self.device, error, error, self.namespace, self.point_id)
             return
         duration = time.time()-self.tic1
         save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
