@@ -32,3 +32,8 @@ add next seg id from seg_ids_to_extend
     Remove next_seg_id from the master seg_ids_to_extend array
 
     Push next_seg_id onto queue
+
+
+tip_finding/tip_finding.py/endpoints_from_rid() - to find tips
+
+pass endpoints and root id into drive/segment_points()
