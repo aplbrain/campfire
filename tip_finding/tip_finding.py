@@ -779,21 +779,23 @@ def endpoints_from_rid(root_id, center_collapse=True):
     trimesh.repair.fix_normals(mesh_obj)
     mesh_obj.fill_holes()
 
-    def get_soma(root_id:str):
-        cave_client = CAVEclient('minnie65_phase3_v1')
-        soma = cave_client.materialize.query_table(
-            "nucleus_neuron_svm",
-            filter_equal_dict={'pt_root_id':root_id}
-        )
-        return soma
+    # def get_soma(root_id:str):
+    #     cave_client = CAVEclient('minnie65_phase3_v1')
+    #     soma = cave_client.materialize.query_table(
+    #         "nucleus_neuron_svm",
+    #         filter_equal_dict={'pt_root_id':root_id}
+    #     )
+    #     return soma
 
-    s = get_soma(str(root_id))
-    if s.shape[0] > 0:
-        soma_center = s.pt_position.iloc[0] * np.array([4,4,40])
-    else:
-        soma_center=None
-        print(root_id, "No Soma Found")
-    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means = get_endpoints(mesh_obj, soma_center)
+    # s = get_soma(str(root_id))
+    # if s.shape[0] > 0:
+    #     soma_center = s.pt_position.iloc[0] * np.array([4,4,40])
+    # else:
+    #     soma_center=None
+    #     print(root_id, "No Soma Found")
+    # good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means = get_endpoints(mesh_obj, soma_center)
+    
+    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means = get_endpoints(mesh_obj)
 
     return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means 
 
@@ -895,7 +897,8 @@ def chop_thin_bits_mean(mean_locs, skel_mp, rad_thresh=100, rad_len_thresh=1000,
     area_dict = {key: len_dict[key]*rad_dict[key] for key in len_dict.keys()}
     return edges, area_dict, mask_verts, flat_tip_agree_thick, flat_tip_agree_thin, eps_nm
 
-def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_len_thresh=1000000, rad_thresh=300, filt_len=3, path_dist_to_tip=5000):
+# def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_len_thresh=1000000, rad_thresh=300, filt_len=3, path_dist_to_tip=5000):
+def get_endpoints(mesh, center=None, invalidation=2000, rad_len_thresh=1000000, rad_thresh=300, filt_len=3, path_dist_to_tip=5000):
     if type(center) == type(None):
         collapse_function = 'branch'
     else:
@@ -905,7 +908,7 @@ def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_le
                                                 mesh.faces),
                                                 invalidation_d=invalidation,
                                                 collapse_function=collapse_function,
-                                                soma_radius = soma_radius,
+                                                # soma_radius = soma_radius,
                                                 soma_pt=center,
                                                 smooth_neighborhood=5,
 #                                                     collapse_params = {'dynamic_threshold':True}
