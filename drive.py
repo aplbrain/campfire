@@ -115,6 +115,11 @@ def segment_points(root_id, endpoint, point_id, radius=(200, 200, 30), resolutio
     toc = time.time()
     print("Ext Time", toc-tic)
     ext.get_bounds(endpoint)
+
+    print(endpoint)
+    print(endpoint/resolution)
+    print(ext.bound_EM)
+
     tic = time.time()
     print("Bounds Time", tic-toc)
     success = ext.gen_membranes(intern_pull=False, restitch_gaps=True)
@@ -210,4 +215,3 @@ if __name__ == "__main__":
     if mode == 'agents':
         run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5],
                        namespace_agt=sys.argv[4], rez=np.array([8, 8, 40]))
-
