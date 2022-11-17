@@ -14,7 +14,7 @@ from scipy.ndimage import label
 
 class Extension():
     def __init__(self, root_id, resolution, radius, unet_bound_mult, 
-                 device, save, nucleus_id, time_point, namespace, direction_test):
+                 device, save, nucleus_id, time_point, namespace, direction_test, point_id):
         if type(root_id) == 'list':
             self.root_id = [int(r) for r in root_id]
         else:
@@ -28,6 +28,7 @@ class Extension():
         self.seg_root_id = -1
         self.device = device
         self.cnn_weights = 'thick'
+        self.point_id=point_id
         # self.cnn_weights = 'thin'
         self.save = save
         self.nucleus_id = nucleus_id
@@ -47,6 +48,9 @@ class Extension():
 
         tic = time.time()
         self.seg, self.em_big = self.get_data()
+        if self.seg is None:
+            print("EMPTY VOLUME")
+            return -3
         for i in range(1, self.seg.shape[2]):
             if np.sum((self.seg[..., i-1] - self.seg[..., i]) != 0) < 1000:
                 self.seg[..., i-1] = 0
@@ -59,12 +63,10 @@ class Extension():
             if np.sum(self.seg) == 0:
                 self.merges={}
                 return -2
-        print("ONE", self.em_big.shape, self.bound_EM)
         if self.direction_test:
             self.middle_spot = self.seg.shape[2] // 2
             above = np.sum(self.seg[:, :, self.middle_spot:] == self.root_id)
             below = np.sum(self.seg[:, :, :self.middle_spot] == self.root_id)
-            print(above, below)
             if above > below:
                 self.direction = -1
                 self.seg = self.seg[:, :, :self.middle_spot+ex_slices]
@@ -81,10 +83,9 @@ class Extension():
                 self.direction_test = False
             else:
                 print("ROOT ID NOT FOUND, CRASHING")
-                return 0
+                return -1
         else:
             self.direction = 0
-        print("TWO", self.em_big.shape, self.bound_EM, self.direction)
 
         ## I will not stand integer overflow any longer ##
         ## Remaps from really large ints very fast ##
@@ -173,6 +174,7 @@ class Extension():
 
         map_dict = {i[0]: counts[i[0]] for i in np.argwhere(counts > 0)}
         results_dict = {}
+        results_thresh = {}
 
         seg_pix = np.zeros_like(edt_labelled)
         for k, v in map_dict.items():
@@ -192,25 +194,24 @@ class Extension():
                 except:
                     results_dict[(seg_rid, to_merge)] = bins[b]*v
                     
-            results_thresh = {}
-            seg_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == seg_rid, axis=0), axis=0) > 0)
+        seg_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == seg_rid, axis=0), axis=0) > 0)
 
-            res_list  = list(results_dict.values())
-            if len(res_list) > 0:
-                max_val = np.max(res_list)
-                for k, v in results_dict.items():
-                    if v > .05*max_val:
-                        ext_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == k[1], axis=0), axis=0) > 0)
+        res_list  = list(results_dict.values())
+        if len(res_list) > 0:
+            max_val = np.max(res_list)
+            for k, v in results_dict.items():
+                if v > .05*max_val:
+                    ext_direcs = np.argwhere(np.sum(np.sum(self.seg_remap == k[1], axis=0), axis=0) > 0)
                 #         print(k, ext_direcs)
-                        if self.direction == 1:
-                            if np.max(seg_direcs) > np.min(ext_direcs):
-                                continue
-                        if self.direction == -1:
-                            if np.min(seg_direcs) <= np.min(ext_direcs):
-                                continue
-                        results_thresh[k] = v / max_val
-            else:
-                results_thresh = {}
+                    if self.direction == 1:
+                        if np.max(seg_direcs) > np.min(ext_direcs):
+                            continue
+                    if self.direction == -1:
+                        if np.min(seg_direcs) <= np.min(ext_direcs):
+                            continue
+                    results_thresh[k] = v / max_val
+        else:
+            results_thresh = {}
         self.merge_d = results_thresh
 
     def run_agents(self,nsteps=200, n_agents=100):
@@ -254,10 +255,17 @@ class Extension():
 
         print("Merge Time", merge_time, self.seg.dtype)
 
-    def save_agent_merges(self, error=False):
+    def save_agent_merges(self, error=1):
+        if error < 0:
+            import neuvueclient as Client
+            C = Client.NeuvueQueue("https://queue.neuvue.io")
+            C.patch_point(self.point_id, agents_status='extension_completed')
+            save_merges(self.save, {}, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
+                    {}, self.bound, self.bound_EM, 0, self.device, error, error, self.namespace, self.point_id)
+            return
         duration = time.time()-self.tic1
         save_merges(self.save, self.merges, self.root_id[0], self.nucleus_id, self.time_point, self.endpoint,
-                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace)
+                    self.weights_dict, self.bound, self.bound_EM, self.mem_seg, self.device, duration, self.n_errors, self.namespace, self.point_id)
    
     # Create a queue out of any of the above sampling methods
     def create_queue(self, n_pts, sampling_type="extension_only"):
@@ -386,19 +394,22 @@ class Extension():
             
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     def get_data(self, seg_or_sv = 'sv'):
-        vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
-        em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
+        try:
+            vol = CloudVolume("s3://bossdb-open-data/iarpa_microns/minnie/minnie65/em", use_https=True, mip=0)
+            em = np.squeeze(vol[self.bound_EM[0]:self.bound_EM[1], self.bound_EM[2]:self.bound_EM[3], self.bound_EM[4]:self.bound_EM[5]])
 
-        if seg_or_sv == 'seg':
-            self.seg_root_id = self.public_root_id
-            seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
-        elif seg_or_sv == 'sv':
-            self.seg_root_id = self.root_id
-            seg = data_loader.supervoxels(*self.bound_EM)
+            if seg_or_sv == 'seg':
+                self.seg_root_id = self.public_root_id
+                seg = np.squeeze(data_loader.get_seg(*self.bound_EM))
+            elif seg_or_sv == 'sv':
+                self.seg_root_id = self.root_id
+                seg = data_loader.supervoxels(*self.bound_EM)
         # except (exceptions.OutOfBoundsError, exceptions.EmptyVolumeException):
         #     print("OOB")
         #     return "Out Of Bounds", "Out Of Bounds"
-        return seg, em 
+            return seg, em 
+        except:
+            return None, None
 
 def get_bounds(endpoint, radius, mult=1, z_mult=1):
 
@@ -503,7 +514,7 @@ def em_analysis(em, seg, cnn_weights, device, bound_EM, intern_pull=True, restit
     return mem_seg, seg, em, errors_gap, errors_zero_template
 
 def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights_dict, bound,
-                bound_EM, mem_seg, device, duration, n_errors, namespace):
+                bound_EM, mem_seg, device, duration, n_errors, namespace, points_id):
     if type(root_id) == list:
         root_id = root_id[0]
     if save == "pd":
@@ -533,7 +544,7 @@ def save_merges(save, merges, root_id, nucleus_id, time_point, endpoint, weights
         if len(merges) == 0:
             weights_dict={}
         C.post_agent(str(root_id), str(nucleus_id), end, weights_dict, metadata, namespace) 
-        #C.patch_point(point_id, agents_status='extension_completed')
+        C.patch_point(points_id, agents_status='extension_completed')
         # pickle.dump(mem_seg, open(f"./data/INTERNmem_{duration}_{root_id}_{endpoint}.p", "wb"))
 
         # pickle.dump(bound_EM, open(f"./data/INTERNBOUNDS_{duration}_{root_id}_{endpoint}.p", "wb"))

@@ -69,7 +69,7 @@ def position_merge(ep, root_id, merge_d, endpoint_nm, n_errors, mean_err, max_er
         # soma_table = get_soma(m_list)
         toc = time.time()
         print("soma time", toc - tic)
-        polarity_table = is_dendrite(endpoint_nm, m_list)
+        #polarity_table = is_dendrite(endpoint_nm, m_list)
         tic = time.time()
         print("polarity time", tic - toc)
         # thresholds_dict, thresholds_list = trajectory_filter(root_id, m_list, seg)
@@ -80,7 +80,7 @@ def position_merge(ep, root_id, merge_d, endpoint_nm, n_errors, mean_err, max_er
             soma_filter = False
             if int(k[0]) in root_id:
                 extension = int(k[1])
-                weight = int(merges[k])
+                weight = float(merges[k])
             elif int(k[1]) in root_id:
                 extension = int(k[0])
                 weight = float(merges[k])
@@ -90,20 +90,20 @@ def position_merge(ep, root_id, merge_d, endpoint_nm, n_errors, mean_err, max_er
                 continue
             # if soma_table.get_soma(extension) > 0:
             #     soma_filter=True
-            mixed_polarity_root, n_pre_root, n_post_root, n_pre_seg, n_post_seg, mixed_polarity_seg = polarity_table.dendrite_filt(root_id[0], extension)
+         #   mixed_polarity_root, n_pre_root, n_post_root, n_pre_seg, n_post_seg, mixed_polarity_seg = polarity_table.dendrite_filt(root_id[0], extension)
 
             d = {
                 "EP":[ep], 
                 "Root_id":str([root_id[0]]), 
                 "Extension":str(extension)+"/", 
                 "Weight":weight, 
-                "mix_root": mixed_polarity_root, 
-                "n_pre_root":n_pre_root, 
-                "n_post_root":n_post_root, 
-                "n_pre_seg":n_pre_seg, 
-                "n_post_seg":n_post_seg,
-                "mix_seg":mixed_polarity_seg,
-                "Soma_filter":soma_filter,
+               # "mix_root": mixed_polarity_root, 
+               # "n_pre_root":n_pre_root, 
+               # "n_post_root":n_post_root, 
+               # "n_pre_seg":n_pre_seg, 
+               # "n_post_seg":n_post_seg,
+               # "mix_seg":mixed_polarity_seg,
+               # "Soma_filter":soma_filter,
                 "Error_num":n_errors,
                 "Error_max":max_err,
                 "Error_mean":mean_err,
@@ -1236,7 +1236,7 @@ def combined_stitch(em, errors, direction, patch_size = 160, stride = 40, altern
                     scalar=1
                     indx = i+sign
                 print(tile_1_idx, warp_idx, indx, dropped, scalar, np.mean(x*scalar))
-                if warp_idx > warped_mat.shape[2]:
+                if warp_idx > warped_mat.shape[2] - 1:
                     warp_idx =  warped_mat.shape[2] - 1
                 warped_img = ndimage_warp(
                     np.squeeze(warped_mat[:, :, warp_idx]),
