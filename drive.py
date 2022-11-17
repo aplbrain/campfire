@@ -16,6 +16,8 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, all_flat  = endpoints_from_rid(root_id)
     if delete:
         root_id_msg.delete()
+    if good_tips_thick is None:
+        return
     if save == 'sqs':
         queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
 
@@ -65,6 +67,7 @@ def run_endpoints(end, namespace="tips", save='nvq', delete=False):
     queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
     n_root_id = 0
     while n_root_id < end or end == -1:
+        print("N", n_root_id)
         endpoints(queue_url_rid, namespace, save, delete)
         n_root_id+=1
     return 1

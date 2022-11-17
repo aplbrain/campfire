@@ -2,9 +2,9 @@ pyembree
 backoff
 numpy
 pandas
-meshparty
-cloud-volume
-caveclient
+meshparty==1.16.1
+cloud-volume==8.5.4
+caveclient==4.5.2
 trimesh
 networkx
 scipy

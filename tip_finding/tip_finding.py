@@ -1,4 +1,5 @@
 from cloudvolume import CloudVolume
+import backoff
 from meshparty import skeletonize, trimesh_io, meshwork
 from caveclient import CAVEclient
 import trimesh
@@ -776,6 +777,9 @@ def endpoints_from_rid(root_id, center_collapse=True):
     mesh = vol.mesh.get(str(root_id))
     mesh = mesh[int(root_id)]
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
+    if mesh_obj.volume > 3000000000000:
+        print("TOO BIG, SKIPPING")
+        return None, None, None, None, None, None
     trimesh.repair.fix_normals(mesh_obj)
     mesh_obj.fill_holes()
 
