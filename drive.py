@@ -128,10 +128,12 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
     # print("points", points)s
     while True:
         for p in range(points.shape[0]):
+            print("Point", p)
             row = points.iloc[p]
             rid = int(row.metadata['root_id'])
         
             if row.created.second % n_machines == 0:
+                print("SKIP")
                 continue
 
             namespace_save = f"{namespace_agt}_{row.type[-1]}"
@@ -144,7 +146,11 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
                 continue
             ext.save_agent_merges()
             print("Done", rid, p, ext.merges)
+        print("Getting more points")
+        queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
+        endpoints(queue_url_rid, namespace, 'nvq', True)
         points = get_points_nvc({"namespace":namespace, 'type':['error_high_confidence_thick', 'error_high_confidence_thin'], 'agents_status':'open'})
+        idx = points.index
     return 1
 
 def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1.5, save='pd',device='cpu',

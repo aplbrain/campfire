@@ -9,4 +9,5 @@ cloud-volume
 caveclient
 networkx
 connected-components-3d
+meshparty
 scipy
