@@ -763,6 +763,7 @@ def remove_small_leaf_branches(branch_nodes, edges, vertices, radii, n_pass=1, l
     area_dict = {key: len_dict[key]*rad_dict[key] for key in len_dict.keys()}
     return edges, area_dict, rad_dict, len_dict, mask_verts
 
+@backoff.on_exception(backoff.expo, Exception, max_tries=5)
 def endpoints_from_rid(root_id, center_collapse=True):
     datastack_name = "minnie65_phase3_v1"
     client = CAVEclient(datastack_name)
