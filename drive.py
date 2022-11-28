@@ -62,7 +62,7 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     return good_tips_thick 
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional")
     n_root_id = 0
     while n_root_id < end or end == -1:
         endpoints(queue_url_rid, namespace, save, delete)
@@ -147,7 +147,7 @@ def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), 
             ext.save_agent_merges()
             print("Done", rid, p, ext.merges)
         print("Getting more points")
-        queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
+        queue_url_rid = sqs.get_or_create_queue("Root_ids_functional")
         endpoints(queue_url_rid, namespace, 'nvq', True)
         points = get_points_nvc({"namespace":namespace, 'type':['error_high_confidence_thick', 'error_high_confidence_thin'], 'agents_status':'open'})
         idx = points.index

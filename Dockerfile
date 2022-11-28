@@ -26,4 +26,4 @@ RUN . /opt/venv/bin/activate && pip3 install -e ./intern
 COPY neuvuequeue.cfg /root/.neuvuequeue/neuvuequeue.cfg
 RUN pip3 freeze
 
-CMD . /opt/venv/bin/activate && python3 drive.py agents nvq gpu agents_prod_v6 Tip_detect_prod_v1
+CMD . /opt/venv/bin/activate && python3 drive.py agents nvq gpu agents_prod_functional Tip_detect_prod_v2
