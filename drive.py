@@ -55,12 +55,12 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
             s5 = nvc_post_point(C, (all_tips).astype(int), "Justin", namespace, "all_tips", time_point, metadata)
         else:
             s5 = -1
-        all_flat = np.array(all_flat)
-        if all_flat.shape[0] > 0:
-            s6 = nvc_post_point(C, (all_flat).astype(int), "Justin", namespace, "all_flats", time_point, metadata)
-        else:
-            s6 = -1
-        print(s1, s2, s3, s4, s5, s6)
+        #all_flat = np.array(all_flat)
+        #if all_flat.shape[0] > 0:
+        #    s6 = nvc_post_point(C, (all_flat).astype(int), "Justin", namespace, "all_flats", time_point, metadata)
+        #else:
+        #    s6 = -1
+        #print(s1, s2, s3, s4, s5, s6)
     return good_tips_thick 
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
