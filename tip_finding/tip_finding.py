@@ -165,7 +165,7 @@ def calc_area(coords):
     face_area = .5* np.array(np.abs(t1 + t2 + t3))
     return face_area
 
-def get_next(ids, ad, face_ad_sub_flat):
+def get_next(ids, ad, face_ad_sub_flat, face_angles, face_areas, face_normals, direc):
 
     isin_mask = np.isin(ad, ids)
     inds = np.argwhere(np.logical_xor(isin_mask[:, 0], isin_mask[:, 1]))
@@ -178,7 +178,11 @@ def get_next(ids, ad, face_ad_sub_flat):
 
     good_rows = ad[inds]
     good_ids = good_rows[~np.isin(good_rows, ids)]
-    return good_ids, f
+    areas = np.mean(face_areas[good_rows][:,0,:], axis=1)
+    angles = face_angles[inds]
+    normals = face_normals[good_ids][:,2]*direc
+
+    return good_ids, f, areas, angles, normals
 
 def normals_next_exp_con(normals, face_inds, face_adjacency, n_faces, area_thresh, face_area, t=.95, mark=1, ct_lim=100):
     
@@ -480,29 +484,29 @@ def find_local_diffs(graphs, normals, mesh_obj, sums_mask, radius=50, endpoint=N
     return dps, dps_diff, vecs_diff, vecs_nearest, direcs
 
 def get_flat_regions(mesh, minsize=100000, n_iter=3):
-
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
     mesh_coords = mesh_obj.vertices[mesh_obj.faces]
     normals = mesh_obj.face_normals
 
-    # diff = mesh_coords[:,:,2] - mesh_coords[:, 0, 2][:, None]
+    mesh_z = mesh_coords[:,:,2]
+    diff = np.mean(np.abs(mesh_z - np.mean(mesh_z, axis=1)[:, None]), axis=1)
 
-    # one_pts = np.argwhere(np.sum(np.abs(diff),axis=1) <= 1)
+    one_mask = diff <= 10
     # one_mask = np.full(mesh_obj.faces.shape[0], False)
     # one_mask[one_pts] = True
 
     # Make sure to fix normals in mesh
-    one_mask = np.abs(normals[:, 2]) > .95
+    # one_mask = np.abs(normals[:, 2]) == 1
 
     adjacency_mask =  one_mask[mesh_obj.face_adjacency]
     adjacency_mask_both = adjacency_mask[:,0]*adjacency_mask[:,1]
     E = mesh_obj.face_adjacency[adjacency_mask_both]
 
     face_areas = mesh_obj.area_faces
-    area_dict = {int(i): face_areas[i] for i in range(face_areas.shape[0])}
+    area_dict = {int(i): face_areas[i] for i in tqdm(range(face_areas.shape[0]))}
     face_centers = np.mean(mesh_coords, axis=1)
 
-    loc_dict = {int(i): face_centers[i] for i in range(face_centers.shape[0])}
+    loc_dict = {int(i): face_centers[i] for i in tqdm(range(face_centers.shape[0]))}
 
     G = nx.from_edgelist(E)
     nx.set_node_attributes(G, area_dict, name='area')
@@ -512,36 +516,33 @@ def get_flat_regions(mesh, minsize=100000, n_iter=3):
     # to_remove = [n for n, d in degs if d != 3 and G.nodes()[n]['area'] < a_min]
     # G.remove_nodes_from(to_remove)
 
-    graphs = [G.subgraph(c).copy() for c in nx.connected_components(G)]
+    graphs = [G.subgraph(c).copy() for c in tqdm(nx.connected_components(G))]
     sums = np.array([np.sum(list(nx.get_node_attributes(g, 'area').values())) for g in graphs])
-    locs = np.array([np.array(list(nx.get_node_attributes(g, 'mean_loc').values())) for g in graphs])
+    locs = np.array([np.mean(list(nx.get_node_attributes(g, 'mean_loc').values()),axis=0) for g in graphs])
     # face_angles = trimesh.geometry.vector_angle(normals[mesh_obj.face_adjacency])
     # s_min = 100000
     # s_max = 2000000
     sums_mask = np.squeeze(np.argwhere(sums > minsize))
+    face_angles = trimesh.geometry.vector_angle(normals[mesh_obj.face_adjacency])
 
-    if len(sums_mask.shape) == 0:
-        sums_mask = np.array([sums_mask])
+    expanded_nodes = []
+    original_nodes = []
 
-    # sums_mask = np.squeeze(np.argwhere((sums > s_min)))
-    # sums_mask.shape[0], len(graphs), sums.shape
-    n_aboves = np.zeros(sums_mask.shape[0])
-    n_belows = np.zeros(sums_mask.shape[0])
-    sums_mask = np.squeeze(np.argwhere(sums > minsize))
-    flat_mask = np.full(sums_mask.shape[0], True)
+    area_nodes = []
+    angle_nodes = []
+    normals_nodes = []
+    direc_nodes = []
+    sums_nodes = []
 
-    mean_locs = []
-    mean_locs_all = []
-    mean_locs_bad = []
-    inds_good = []
-    inds_bad = []
+    sums_masked = sums[sums > minsize]
 
+    # face_angles = []
     all_nodes = set()
+    n_iter = 3
 
     for s in range(sums_mask.shape[0]):
         all_nodes.update(list(graphs[sums_mask[s]].nodes()))
 
-    # Precomputing the adjacency matrix saves a lot of time
     for _ in range(n_iter):
         masked_ad = np.isin(mesh_obj.face_adjacency, list(all_nodes))
         masked_ad_rows = np.sum(masked_ad,axis=1)>0
@@ -549,59 +550,142 @@ def get_flat_regions(mesh, minsize=100000, n_iter=3):
         face_ad_sub_flat = mesh_obj.face_adjacency[masked_ad_rows].flatten()
         all_nodes.update(face_ad_sub_flat)
         
+    face_angles_sub = face_angles[masked_ad_rows]
+
     for s in tqdm(range(sums_mask.shape[0])):
         curr_nodes = list(graphs[sums_mask[s]].nodes())
-
-        original_nodes = list(graphs[sums_mask[s]].nodes())
+        o_nodes = list(graphs[sums_mask[s]].nodes())
+        area_dict = {}
+        angle_dict = {}
+        normals_dict = {}
         tris_list = []
-        for _ in range(n_iter):
-            new_tris, f = get_next(curr_nodes, face_ad_sub, face_ad_sub_flat)
+        direc = np.mean(mesh_obj.face_normals[curr_nodes][:,2])
+        if np.abs(direc) < .95:
+            continue
+        for i in range(n_iter):
+            new_tris, f, areas, angles, normals_n = get_next(curr_nodes, 
+                                                        face_ad_sub, face_ad_sub_flat, 
+                                                        face_angles_sub, mesh_obj.area_faces,
+                                                        mesh_obj.face_normals, np.round(direc))
+
+            area_dict[i] = areas[angles[:, 0] != 0]
+            angle_dict[i] = angles[angles != 0]
+            normals_dict[i] = normals_n[angles[:,0] != 0]
+            
+    #     if len(tris_list)  == 0:
+    #         continue
+    #         print(s, direc, np.mean(mesh_coords[list(graphs[sums_mask[s]].nodes())][:, 0],axis=0) / [4,4,40], i, len(angle_dict[i]), np.sum(normals_dict[i] * area_dict[i]) / np.sum(area_dict[i]), np.mean(normals_dict[i]))
             curr_nodes.extend(new_tris)
             tris_list.extend(new_tris)
-        if len(tris_list)  == 0:
-            continue
         new_tris =  np.array(tris_list)
-        
-        flat_mask_faces = np.abs(normals[original_nodes][:, 2]) == 1
-        face_z = mesh_coords[original_nodes][flat_mask_faces]
+        original_nodes.append(o_nodes)
+        expanded_nodes.append(set(curr_nodes) - set(o_nodes))
+        area_nodes.append(area_dict)
+        angle_nodes.append(angle_dict)
+        normals_nodes.append(normals_dict)
+        direc_nodes.append(direc)
+        sums_nodes.append(sums_masked[s])
 
-        
-        if face_z.shape[0] == 0:
-            flat_mask[s] = False
-            continue
-        else:
-            face_z = face_z[0, 0, 2]
-        
-        diffs = mesh_coords[list(new_tris)][:, :, 2] - face_z
-        n_above = np.sum(diffs > 5)
-        n_below = np.sum(diffs < -5)
-        n_aboves[s] = n_above
-        n_belows[s] = n_below
-        direc = np.round(np.mean(normals[original_nodes][:, 2]))
-        af = mesh_obj.area_faces[new_tris]
-        af = af / np.sum(af)
-        angs = np.arccos(np.dot(normals[new_tris], np.array([0, 0, direc])))
-        mloc = np.mean(np.mean(mesh_coords[original_nodes][flat_mask_faces], axis=1),axis=0)
+    combine_list = []
+    hit = np.zeros(len(expanded_nodes))
+    for s1 in range(len(expanded_nodes)):
+        for s2 in range(s1 + 1, len(expanded_nodes)):
+            inter = len(expanded_nodes[s1].intersection(expanded_nodes[s2]))
+    #         print(inter, direc_nodes[s1], direc_nodes[s2])
+            if inter > 0 and np.round(direc_nodes[s1]) == np.round(direc_nodes[s2]):
+    #             print(s1,s2,inter)
+                combine_list.append([s1, s2])
+                hit[s1] = 1
+                hit[s2] = 1
+    connected_graph = nx.from_edgelist(combine_list)
+    connected_components = list(nx.connected_components(connected_graph))
 
-        if (n_above > 0) and (n_below > 0):
-            flat_mask[s] = False
-        elif (n_above > 0 and direc == 1) or (n_below > 0 and direc == -1):
-            flat_mask[s] = False
-        elif not f:
-            flat_mask[s] = False
-        elif np.sum(af*(angs < np.pi/4)) < .35:
+    comps = [connected_graph.subgraph(c).copy() for c in connected_components]
+
+    merged_nodes_original = []
+    merged_nodes_extended = []
+
+    area_nodes_o = []
+    angle_nodes_o = []
+    normal_nodes_o = []
+    sums_nodes_o = []
+
+    for i, comp in enumerate(comps):
+        mo = []
+        me = []
+        
+        normals_extended = []
+        
+        m_r = {i:[] for i in range(n_iter)}
+        m_n = {i:[] for i in range(n_iter)}
+        m_norm = {i:[] for i in range(n_iter)}
+        
+        new_sum = 0
+        for n in comp.nodes():
+            mo.extend(original_nodes[n])
+            me.extend(expanded_nodes[n])
+            new_sum += sums_masked[n]
+            
+            [m_r[i].extend(area_nodes[n][i]) for i in range(n_iter)]
+            [m_n[i].extend(angle_nodes[n][i]) for i in range(n_iter)]
+            [m_norm[i].extend(normals_nodes[n][i]) for i in range(n_iter)]
+        sums_nodes_o.append(new_sum)
+
+        merged_nodes_original.append(list(set(mo)))
+        merged_nodes_extended.append(list(set(me)))
+        
+        area_nodes_o.append(m_r)
+        angle_nodes_o.append(m_n)
+        normal_nodes_o.append(m_norm)
+        
+    for comp in np.squeeze(np.argwhere(hit == 0)):
+
+        merged_nodes_original.append(original_nodes[comp])
+        merged_nodes_extended.append(expanded_nodes[comp])
+        area_nodes_o.append(area_nodes[comp])
+        angle_nodes_o.append(angle_nodes[comp])
+        normal_nodes_o.append(normals_nodes[comp])
+    mean_locs_all = []
+    mean_locs_good = []
+    mean_locs_good_all = []
+    mean_locs_bad_all = []
+    mean_locs_bad = []
+    inds_good = []
+    inds_bad = []
+    areas_good = []
+    areas_bad = []
+
+    for s in tqdm(range(len(merged_nodes_original))):
+        
+        orig_nodes = merged_nodes_original[s]
+        mloc = np.mean(np.mean(mesh_coords[orig_nodes], axis=1),axis=0)
+
+        all_normals = np.array([])
+        all_areas = np.array([])
+        for i in range(n_iter):
+            all_normals = np.append(all_normals, normal_nodes_o[s][i])
+            all_areas = np.append(all_areas, area_nodes_o[s][i])
+
+        mean_off_angle = np.sum(np.array(all_normals) * np.array(all_areas)) / np.sum(all_areas)
+        if mean_off_angle < .25:
             mean_locs_all.append(mloc)
-            mean_locs.append(mloc)
+            mean_locs_good.append(mloc)
+            mean_locs_good_all.append(mesh_coords[orig_nodes][:,0])
             inds_good.append(s)
+            areas_good.append(area_nodes_o[s][0])
         else:
             mean_locs_all.append(mloc)
             mean_locs_bad.append(mloc)
+            mean_locs_bad_all.append(mesh_coords[orig_nodes][:,0])
             inds_bad.append(s)
-    #         print(s,np.mean(angs), np.divide(mloc, np.array([4,4,40])))
+            areas_good.append(area_nodes_o[s][0])
 
-    mean_locs = np.array(mean_locs)
+    #         print(s,np.mean(angs), np.divide(mloc, np.array([4,4,40])))
+    mean_locs_good = np.array(mean_locs_good)
+    mean_locs = np.array(mean_locs_all)
     mean_locs_bad = np.array(mean_locs_bad)
-    return sums_mask, locs, sums, graphs, normals, mean_locs, mean_locs_bad, mean_locs_all
+
+    return sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, areas_good, areas_bad
 
 def connected_faces(m, connectivity = 6):
     import cc3d
@@ -802,36 +886,52 @@ def endpoints_from_rid(root_id, center_collapse=True):
 
     return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means 
 
-def chop_thin_bits_mean(mean_locs, skel_mp, rad_thresh=100, rad_len_thresh=1000, filt_len=3, path_dist_to_tip=5000):
+def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thresh=100, filt_len=3, path_dist_to_tip=5000):
     rad_dict = {}
     len_dict = {}
     edges = skel_mp.edges.copy()
-    
+
     edges_flat  = edges.flatten()
     edge_bins = np.bincount(edges_flat) 
-    
+
     bps = np.squeeze(np.argwhere(edge_bins==3))
     eps = np.squeeze(np.argwhere(edge_bins==1))
     eps_nm = skel_mp.vertices[eps]
-    
+
     hit_tips = np.zeros(eps_nm.shape[0])+path_dist_to_tip
     mask_verts = np.full(skel_mp.vertices.shape[0], True)
-    
+
     flat_tip_agree_thick = {}
     flat_tip_agree_thin = {}
+
+    area_skel_dict = {}
+
+    for i, all_locs in tqdm(enumerate(mean_locs_all)):
+
+        min_dist = np.inf
+        avg_loc = np.mean(all_locs,axis=0)
+        for j in range(all_locs.shape[0]):
+            skel_pts_dists = np.linalg.norm(skel_mp.vertices - all_locs[j], axis=1)
+            min_idx = np.argmin(skel_pts_dists)
             
-    for i, tip in tqdm(enumerate(mean_locs)):
+            if skel_pts_dists[min_idx] < min_dist:
+                tip = all_locs[j]
+                closest_skel_pt = np.argmin(skel_pts_dists)
+                tip_dist_nm = np.linalg.norm(eps_nm - tip, axis=1)
 
-        skel_pts_dists = np.linalg.norm(skel_mp.vertices - tip, axis=1)
-        closest_skel_pt = np.argmin(skel_pts_dists)
-        tip_dist_nm = np.linalg.norm(eps_nm - tip, axis=1)
+                tip_hit = np.argmin(tip_dist_nm)
+                min_dist = skel_pts_dists[min_idx]
+                if min_dist == 0:
+                    break
 
-        tip_hit = np.argmin(tip_dist_nm)
         ep = eps[tip_hit]
         p = skel_mp.path_between(ep, closest_skel_pt)
+        path_len_ep = skel_mp.path_length(p)
+        
         if np.any(np.isin(p, bps)):
+    #         skel_mp.vertices[np.argwhere(np.isin(p, bps))] / [4,4,40]
             continue
-        if np.min(tip_dist_nm) < hit_tips[tip_hit] and skel_pts_dists[closest_skel_pt] < 1000:
+        if np.min(tip_dist_nm) < hit_tips[tip_hit] and min_dist < 500:
             for node in get_next_node(edges, ep):
                 node = [node]
                 prev_node = ep
@@ -839,68 +939,74 @@ def chop_thin_bits_mean(mean_locs, skel_mp, rad_thresh=100, rad_len_thresh=1000,
 
                 ct = 0
                 running_rad = np.zeros(filt_len)
-                min_rad_len = np.inf
+                min_rad = np.inf
                 nodes_before = []
-                rad_len_before = np.inf
-                running_total_rad_len = 0
-
+                len_before = np.inf
+                running_total_len = 0
                 while True:
-    #                 print(ep, running_nodes)
                     curr_node = node
                     last_pos = skel_mp.vertices[curr_node[0]]
 
                     node = get_next_node(edges, curr_node, prev_node)
                     new_pos = skel_mp.vertices[node]
 
-    #                 print(curr_node, prev_node, node, len(node), running_total_rad_len)
                     prev_node = curr_node
                     rad = skel_mp.radius[curr_node[0]]
                     running_rad[ct % filt_len] = rad
-                    running_total_rad_len += rad * np.linalg.norm(new_pos-last_pos)
-
-                    if ct >= filt_len and np.mean(running_rad) < rad_thresh:
-                        min_rad_len = np.mean(running_rad)
+                    running_total_len += np.linalg.norm(new_pos-last_pos)
+                    if ct >= filt_len and np.mean(running_rad) < min_rad:
+                        min_rad = np.mean(running_rad)
                         nodes_before = running_nodes.copy()
 
-                        rad_len_before = running_total_rad_len
+                        len_before = running_total_len
                         last_big_node = curr_node
                     ct += 1
 
                     if len(node) != 1:
     #                     nodes_after = list(set(running_nodes) - set(nodes_before))
-                        rad_len_after = running_total_rad_len - rad_len_before
-
-                        if min_rad_len < rad_thresh and rad_len_after < rad_len_thresh:
-                            mask_rows = np.full(edges.shape[0], True)
-                            path_len = skel_mp.path_length(skel_mp.path_between(ep, int(last_big_node)))
-                            # print(path_len, 1.5*skel_mp.path_length(p), np.divide(tip, np.array([4,4,40])))
-                            if path_len < 1.5*skel_mp.path_length(p):
-                                if eps[tip_hit] in flat_tip_agree_thick:
-                                    break
-                                flat_tip_agree_thick[eps[tip_hit]] = tip
-                                hit_tips[tip_hit] = np.min(tip_dist_nm)
-                            else:
-                                flat_tip_agree_thin[eps[tip_hit]] = tip
-
-                            for n in nodes_before:
-                                edges_rem = np.argwhere(edges == n)[:, 0]
-                                mask_rows[edges_rem] = False
-                                mask_verts[n] = False
-                            edges = edges[mask_rows]
-                        else:
+                        len_after = running_total_len - len_before
+                        mask_rows = np.full(edges.shape[0], True)
+                        path_len = skel_mp.path_length(skel_mp.path_between(ep, int(last_big_node)))
+                        
+                        for n in nodes_before:
+                            edges_rem = np.argwhere(edges == n)[:, 0]
+                            mask_rows[edges_rem] = False
+                            mask_verts[n] = False
+                        
+    #                         if path_len < 1.5*path_len_ep:
+                        if min_rad > rad_thresh or len_after > 5000:
                             if eps[tip_hit] in flat_tip_agree_thick:
+                                print(i, area_skel_dict[eps[tip_hit]], areas[i][0], 'break2')
+
+                                if area_skel_dict[eps[tip_hit]] < areas[i][0]:
+                                    flat_tip_agree_thick[eps[tip_hit]] = tip
+                                    area_skel_dict[eps[tip_hit]] = areas[i][0]
+                                    hit_tips[tip_hit] = np.min(tip_dist_nm)
+                                    print(i, 'good', eps[tip_hit], len(nodes_before))
+
                                 break
+                            print(i, 'good', eps[tip_hit], len(nodes_before))
                             flat_tip_agree_thick[eps[tip_hit]] = tip
+                            area_skel_dict[eps[tip_hit]] = areas[i][0]
                             hit_tips[tip_hit] = np.min(tip_dist_nm)
+                        else: #elif min_rad < rad_thresh:
+                            print(i, 'thin')
+                            flat_tip_agree_thin[eps[tip_hit]] = tip
+                            area_skel_dict[eps[tip_hit]] = areas[i][0]
+    #                         else: 
+    #                             flat_tip_agree_other[eps[tip_hit]] = tip
+
 
                         break
                     else:
                         running_nodes.append(node[0])
-
+        else:
+            print(i, avg_loc / [4,4,40], 'filt', np.min(tip_dist_nm), hit_tips[tip_hit], min_dist)
     area_dict = {key: len_dict[key]*rad_dict[key] for key in len_dict.keys()}
+
     return edges, area_dict, mask_verts, flat_tip_agree_thick, flat_tip_agree_thin, eps_nm
 
-def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_len_thresh=1000000, rad_thresh=300, filt_len=3, path_dist_to_tip=5000):
+def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_len_thresh=1000000, rad_thresh=300, filt_len=3, path_dist_to_tip=5000):
     if type(center) == type(None):
         collapse_function = 'branch'
     else:
@@ -915,9 +1021,10 @@ def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_le
                                                 smooth_neighborhood=5,
 #                                                     collapse_params = {'dynamic_threshold':True}
                                                 )
-    sums_mask, locs, sums, graphs, normals, mean_locs, mean_locs_bad, mean_locs_all = get_flat_regions(mesh)
+    sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, areas_good, areas_bad = get_flat_regions(mesh)
 
-    edges_thick, area_dict, mask_verts, gtips, btips, all_tips = chop_thin_bits_mean(mean_locs, 
+    edges_thick, area_dict, mask_verts, gtips, btips, all_tips = chop_thin_bits_mean(mean_locs_good_all, 
+                                                                                    areas_good,
                                                                                     skel_mp,
                                                                                     rad_thresh=rad_thresh, 
                                                                                     rad_len_thresh=rad_len_thresh,
@@ -927,11 +1034,15 @@ def get_endpoints(mesh, center=None, invalidation=2000, soma_radius=2000, rad_le
     good_tips_thin = np.array(list(btips.values()))
 
     edges_thick, area_dict, mask_verts, gtips_bad, btips_bad, _ = chop_thin_bits_mean(mean_locs_bad, 
+                                                                        areas_bad,
                                                                         skel_mp,
                                                                         rad_thresh=rad_thresh, 
                                                                         rad_len_thresh=rad_len_thresh,
-                                                                        filt_len=filt_len)
+                                                                        filt_len=filt_len,
+                                                                        path_dist_to_tip=path_dist_to_tip
+                                                                        )
+
     good_tips_bad_thick = np.array(list(gtips_bad.values()))
     good_tips_bad_thin = np.array(list(btips_bad.values()))
     
-    return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, mean_locs_all
+    return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, mean_locs_good_all
