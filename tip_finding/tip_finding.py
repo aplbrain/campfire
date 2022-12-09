@@ -1027,7 +1027,7 @@ def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_le
                                                                                     areas_good,
                                                                                     skel_mp,
                                                                                     rad_thresh=rad_thresh, 
-                                                                                    rad_len_thresh=rad_len_thresh,
+                                                                                    len_thresh=5000,
                                                                                     filt_len=filt_len,
                                                                                     path_dist_to_tip=path_dist_to_tip)
     good_tips_thick = np.array(list(gtips.values()))
@@ -1037,7 +1037,7 @@ def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_le
                                                                         areas_bad,
                                                                         skel_mp,
                                                                         rad_thresh=rad_thresh, 
-                                                                        rad_len_thresh=rad_len_thresh,
+                                                                        len_thresh=5000,
                                                                         filt_len=filt_len,
                                                                         path_dist_to_tip=path_dist_to_tip
                                                                         )
