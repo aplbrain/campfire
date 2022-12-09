@@ -1002,7 +1002,10 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                             area_skel_dict[eps[tip_hit]] = areas[i][0] 
                         break
                     else:
-                        running_nodes.append(node[0])
+                        try:
+                            running_nodes.append(node[0])
+                        except:
+                            break
         else:
             print(i, avg_loc / [4,4,40], 'filt', np.min(tip_dist_nm), hit_tips[tip_hit], min_dist)
     area_dict = {key: len_dict[key]*rad_dict[key] for key in len_dict.keys()}
