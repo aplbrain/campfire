@@ -13,7 +13,7 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
     print("RID", root_id)
-    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, all_flat  = endpoints_from_rid(root_id)
+    good_tips_thick, good_tips_thin, good_tips_spine  = endpoints_from_rid(root_id)
     if delete:
         root_id_msg.delete()
     if good_tips_thick is None:
@@ -36,31 +36,18 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         time_point = time.time()#str(datetime.datetime.now())
         if good_tips_thick.shape[0] > 0:
-            s1 = nvc_post_point(C, (good_tips_thick).astype(int), "Justin", namespace, "error_high_confidence_thick", time_point, metadata)
+            s1 = nvc_post_point(C, (good_tips_thick).astype(int), "Justin", namespace, "error_high_confidence_", time_point, metadata)
         else:
             s1 = -1
         if good_tips_thin.shape[0] > 0:
-            s2 = nvc_post_point(C, (good_tips_thin).astype(int), "Justin", namespace, "error_high_confidence_thin", time_point, metadata)
+            s2 = nvc_post_point(C, (good_tips_thin).astype(int), "Justin", namespace, "error_low_confidence", time_point, metadata)
         else:
             s2 = -1
-        if good_tips_bad_thick.shape[0] > 0:
-            s3 = nvc_post_point(C, (good_tips_bad_thick).astype(int), "Justin", namespace, "error_low_confidence_thick", time_point, metadata)
+        if good_tips_spine.shape[0] > 0:
+            s3 = nvc_post_point(C, (good_tips_spine).astype(int), "Justin", namespace, "error_spine", time_point, metadata)
         else:
             s3 = -1
-        if good_tips_bad_thin.shape[0] > 0:
-            s4 = nvc_post_point(C, (good_tips_bad_thin).astype(int), "Justin", namespace, "error_low_confidence_thin", time_point, metadata)
-        else:
-            s4 = -1
-        if all_tips.shape[0] > 0:
-            s5 = nvc_post_point(C, (all_tips).astype(int), "Justin", namespace, "all_tips", time_point, metadata)
-        else:
-            s5 = -1
-        all_flat = np.array(all_flat)
-        if all_flat.shape[0] > 0:
-            s6 = nvc_post_point(C, (all_flat).astype(int), "Justin", namespace, "all_flats", time_point, metadata)
-        else:
-            s6 = -1
-        print(s1, s2, s3, s4, s5, s6)
+        print("Posted", s1, s2, s3)
     return good_tips_thick 
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):

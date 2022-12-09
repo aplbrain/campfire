@@ -882,9 +882,9 @@ def endpoints_from_rid(root_id, center_collapse=True):
     else:
         soma_center=None
         print(root_id, "No Soma Found")
-    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means = get_endpoints(mesh_obj, soma_center)
+    good_tips_thick, good_tips_thin, good_tips_spine = get_endpoints(mesh_obj, soma_center)
 
-    return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, just_tips, just_means 
+    return good_tips_thick, good_tips_thin, good_tips_spine
 
 def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thresh=100, filt_len=3, path_dist_to_tip=5000):
     rad_dict = {}
@@ -903,6 +903,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
 
     flat_tip_agree_thick = {}
     flat_tip_agree_thin = {}
+    flat_tip_agree_spine = {}
 
     area_skel_dict = {}
 
@@ -974,7 +975,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                             mask_verts[n] = False
                         
     #                         if path_len < 1.5*path_len_ep:
-                        if min_rad > rad_thresh or len_after > 5000:
+                        if min_rad > rad_thresh:
                             if eps[tip_hit] in flat_tip_agree_thick:
                                 print(i, area_skel_dict[eps[tip_hit]], areas[i][0], 'break2')
 
@@ -989,14 +990,16 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                             flat_tip_agree_thick[eps[tip_hit]] = tip
                             area_skel_dict[eps[tip_hit]] = areas[i][0]
                             hit_tips[tip_hit] = np.min(tip_dist_nm)
-                        else: #elif min_rad < rad_thresh:
+                        elif len_after > len_thresh:
                             print(i, 'thin')
                             flat_tip_agree_thin[eps[tip_hit]] = tip
                             area_skel_dict[eps[tip_hit]] = areas[i][0]
     #                         else: 
     #                             flat_tip_agree_other[eps[tip_hit]] = tip
-
-
+                        else:
+                            print(i, 'spine')
+                            flat_tip_agree_spine[eps[tip_hit]] = tip
+                            area_skel_dict[eps[tip_hit]] = areas[i][0] 
                         break
                     else:
                         running_nodes.append(node[0])
@@ -1004,7 +1007,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
             print(i, avg_loc / [4,4,40], 'filt', np.min(tip_dist_nm), hit_tips[tip_hit], min_dist)
     area_dict = {key: len_dict[key]*rad_dict[key] for key in len_dict.keys()}
 
-    return edges, area_dict, mask_verts, flat_tip_agree_thick, flat_tip_agree_thin, eps_nm
+    return edges, area_dict, mask_verts, flat_tip_agree_thick, flat_tip_agree_thin, flat_tip_agree_spine, eps_nm
 
 def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_len_thresh=1000000, rad_thresh=300, filt_len=3, path_dist_to_tip=5000):
     if type(center) == type(None):
@@ -1023,7 +1026,7 @@ def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_le
                                                 )
     sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, areas_good, areas_bad = get_flat_regions(mesh)
 
-    edges_thick, area_dict, mask_verts, gtips, btips, all_tips = chop_thin_bits_mean(mean_locs_good_all, 
+    edges_thick, area_dict, mask_verts, gtips, btips, stips, all_tips = chop_thin_bits_mean(mean_locs_good_all, 
                                                                                     areas_good,
                                                                                     skel_mp,
                                                                                     rad_thresh=rad_thresh, 
@@ -1032,17 +1035,18 @@ def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_le
                                                                                     path_dist_to_tip=path_dist_to_tip)
     good_tips_thick = np.array(list(gtips.values()))
     good_tips_thin = np.array(list(btips.values()))
+    good_tips_spine = np.array(list(stips.values()))
 
-    edges_thick, area_dict, mask_verts, gtips_bad, btips_bad, _ = chop_thin_bits_mean(mean_locs_bad, 
-                                                                        areas_bad,
-                                                                        skel_mp,
-                                                                        rad_thresh=rad_thresh, 
-                                                                        len_thresh=5000,
-                                                                        filt_len=filt_len,
-                                                                        path_dist_to_tip=path_dist_to_tip
-                                                                        )
+    # edges_thick, area_dict, mask_verts, gtips_bad, btips_bad, _ = chop_thin_bits_mean(mean_locs_bad, 
+    #                                                                     areas_bad,
+    #                                                                     skel_mp,
+    #                                                                     rad_thresh=rad_thresh, 
+    #                                                                     len_thresh=5000,
+    #                                                                     filt_len=filt_len,
+    #                                                                     path_dist_to_tip=path_dist_to_tip
+    #                                                                     )
 
-    good_tips_bad_thick = np.array(list(gtips_bad.values()))
-    good_tips_bad_thin = np.array(list(btips_bad.values()))
+    # good_tips_bad_thick = np.array(list(gtips_bad.values()))
+    # good_tips_bad_thin = np.array(list(btips_bad.values()))
     
-    return good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, mean_locs_good_all
+    return good_tips_thick, good_tips_thin, good_tips_spine
