@@ -790,8 +790,10 @@ def endpoints_from_rid(root_id, center_collapse=True):
             filter_equal_dict={'pt_root_id':root_id}
         )
         return soma
-
-    s = get_soma(str(root_id))
+    try:
+        s = get_soma(str(root_id))
+    except:
+        s = np.zeros()
     if s.shape[0] > 0:
         soma_center = s.pt_position.iloc[0] * np.array([4,4,40])
     else:

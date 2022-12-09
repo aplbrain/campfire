@@ -64,12 +64,13 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     return good_tips_thick 
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional")
     n_root_id = 0
     while n_root_id < end or end == -1:
         print("N", n_root_id)
         endpoints(queue_url_rid, namespace, save, delete)
         n_root_id+=1
+        print("Done", n_root_id)
     return 1
 
 def nvc_post_point(C, points, author, namespace, name, status, metadata):
