@@ -878,8 +878,8 @@ def endpoints_from_rid(root_id, center_collapse=True):
     try:
         s = get_soma(str(root_id))
     except:
-        s = np.zeros()
-    if s.shape[0] > 0:
+        s = np.zeros([])
+    if len(s.shape) > 0:
         soma_center = s.pt_position.iloc[0] * np.array([4,4,40])
     else:
         soma_center=None
@@ -945,6 +945,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                 nodes_before = []
                 len_before = np.inf
                 running_total_len = 0
+                last_big_node = -1
                 while True:
                     curr_node = node
                     last_pos = skel_mp.vertices[curr_node[0]]
@@ -964,7 +965,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                         last_big_node = curr_node
                     ct += 1
 
-                    if len(node) != 1:
+                    if len(node) != 1 and last_big_node != -1:
     #                     nodes_after = list(set(running_nodes) - set(nodes_before))
                         len_after = running_total_len - len_before
                         mask_rows = np.full(edges.shape[0], True)
