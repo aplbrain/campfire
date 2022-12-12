@@ -524,11 +524,11 @@ def get_flat_regions(mesh, minsize=100000, n_iter=3):
     # s_max = 2000000
     sums_mask = np.squeeze(np.argwhere(sums > minsize))
     face_angles = trimesh.geometry.vector_angle(normals[mesh_obj.face_adjacency])
-
     expanded_nodes = []
     original_nodes = []
 
     area_nodes = []
+    sum_nodes = []
     angle_nodes = []
     normals_nodes = []
     direc_nodes = []
@@ -582,10 +582,10 @@ def get_flat_regions(mesh, minsize=100000, n_iter=3):
         expanded_nodes.append(set(curr_nodes) - set(o_nodes))
         area_nodes.append(area_dict)
         angle_nodes.append(angle_dict)
+        sum_nodes.append(sums_masked[s])
         normals_nodes.append(normals_dict)
         direc_nodes.append(direc)
         sums_nodes.append(sums_masked[s])
-
     combine_list = []
     hit = np.zeros(len(expanded_nodes))
     for s1 in range(len(expanded_nodes)):
@@ -629,8 +629,10 @@ def get_flat_regions(mesh, minsize=100000, n_iter=3):
             [m_r[i].extend(area_nodes[n][i]) for i in range(n_iter)]
             [m_n[i].extend(angle_nodes[n][i]) for i in range(n_iter)]
             [m_norm[i].extend(normals_nodes[n][i]) for i in range(n_iter)]
+        print(new_sum, len(comp.nodes()), np.mean(mesh_coords[original_nodes[n]][:,0,:],axis=0) / [4,4,40])
         sums_nodes_o.append(new_sum)
-
+    #     if new_sum < 100000:
+    #         continue
         merged_nodes_original.append(list(set(mo)))
         merged_nodes_extended.append(list(set(me)))
         
@@ -639,21 +641,25 @@ def get_flat_regions(mesh, minsize=100000, n_iter=3):
         normal_nodes_o.append(m_norm)
         
     for comp in np.squeeze(np.argwhere(hit == 0)):
-
+    #     print(comp, sums_masked[comp])
+    #     if sums_masked[comp] < 100000:
+    #         continue
         merged_nodes_original.append(original_nodes[comp])
         merged_nodes_extended.append(expanded_nodes[comp])
         area_nodes_o.append(area_nodes[comp])
         angle_nodes_o.append(angle_nodes[comp])
         normal_nodes_o.append(normals_nodes[comp])
+        sums_nodes_o.append(sums_masked[comp])
+
     mean_locs_all = []
     mean_locs_good = []
     mean_locs_good_all = []
-    mean_locs_bad_all = []
+    # mean_locs_all_all = []
     mean_locs_bad = []
     inds_good = []
     inds_bad = []
-    areas_good = []
-    areas_bad = []
+    areas = []
+    sums = []
 
     for s in tqdm(range(len(merged_nodes_original))):
         
@@ -667,25 +673,28 @@ def get_flat_regions(mesh, minsize=100000, n_iter=3):
             all_areas = np.append(all_areas, area_nodes_o[s][i])
 
         mean_off_angle = np.sum(np.array(all_normals) * np.array(all_areas)) / np.sum(all_areas)
+        # mean_off_angle0 = np.sum(np.array(normal_nodes_o[s][0]) * np.array(area_nodes_o[s][0])) / np.sum(area_nodes_o[s][0])
+        # mean_off_angle1 = np.sum(np.array(normal_nodes_o[s][1]) * np.array(area_nodes_o[s][1])) / np.sum(area_nodes_o[s][1])
+        # mean_off_angle2 = np.sum(np.array(normal_nodes_o[s][2]) * np.array(area_nodes_o[s][2])) / np.sum(area_nodes_o[s][2])
+        # print(s, mean_off_angle, mean_off_angle0, mean_off_angle1, mean_off_angle2)
+    #     print('m', mean_off_angle, np.mean(np.squeeze(angle_nodes_o[s][0])))
         if mean_off_angle < .25:
             mean_locs_all.append(mloc)
-            mean_locs_good.append(mloc)
+            mean_locs_good.append(mloc);
             mean_locs_good_all.append(mesh_coords[orig_nodes][:,0])
             inds_good.append(s)
-            areas_good.append(area_nodes_o[s][0])
+            sums.append(sums_nodes_o[s])
+            areas.append(area_nodes_o[s][0])
         else:
             mean_locs_all.append(mloc)
             mean_locs_bad.append(mloc)
-            mean_locs_bad_all.append(mesh_coords[orig_nodes][:,0])
             inds_bad.append(s)
-            areas_good.append(area_nodes_o[s][0])
-
     #         print(s,np.mean(angs), np.divide(mloc, np.array([4,4,40])))
     mean_locs_good = np.array(mean_locs_good)
     mean_locs = np.array(mean_locs_all)
     mean_locs_bad = np.array(mean_locs_bad)
 
-    return sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, areas_good, areas_bad
+    return sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, sums_masked#, areas_bad
 
 def connected_faces(m, connectivity = 6):
     import cc3d
@@ -888,7 +897,7 @@ def endpoints_from_rid(root_id, center_collapse=True):
 
     return good_tips_thick, good_tips_thin, good_tips_spine
 
-def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thresh=100, filt_len=3, path_dist_to_tip=5000):
+def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, sums, rad_thresh=200, len_thresh=100, filt_len=3, path_dist_to_tip=5000):
     rad_dict = {}
     len_dict = {}
     edges = skel_mp.edges.copy()
@@ -906,6 +915,10 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
     flat_tip_agree_thick = {}
     flat_tip_agree_thin = {}
     flat_tip_agree_spine = {}
+
+    # rad_thresh = 200
+    # filt_len=3
+    # len_thresh = 100
 
     area_skel_dict = {}
 
@@ -931,8 +944,11 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
         p = skel_mp.path_between(ep, closest_skel_pt)
         path_len_ep = skel_mp.path_length(p)
         
+    #     print(i, mean_locs_good[i], np.min(tip_dist_nm), hit_tips[tip_hit], min_dist)
+    #     print(i, np.min(tip_dist_nm), hit_tips[tip_hit], min_dist, avg_loc / [4,4,40], skel_mp.vertices[ep] / [4,4,40], skel_mp.vertices[closest_skel_pt] / [4,4,40])
         if np.any(np.isin(p, bps)):
     #         skel_mp.vertices[np.argwhere(np.isin(p, bps))] / [4,4,40]
+            print(i, "BP", avg_loc / [4,4,40])
             continue
         if np.min(tip_dist_nm) < hit_tips[tip_hit] and min_dist < 500:
             for node in get_next_node(edges, ep):
@@ -946,7 +962,6 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                 nodes_before = []
                 len_before = np.inf
                 running_total_len = 0
-                last_big_node = -1
                 while True:
                     curr_node = node
                     last_pos = skel_mp.vertices[curr_node[0]]
@@ -966,9 +981,10 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                         last_big_node = curr_node
                     ct += 1
 
-                    if len(node) != 1 and last_big_node != -1:
+                    if len(node) != 1:
     #                     nodes_after = list(set(running_nodes) - set(nodes_before))
                         len_after = running_total_len - len_before
+                        # print("I", i, 'area', sums_nodes[i], 'last node', last_big_node, 'min_dist', min_dist, 'ep pos', skel_mp.vertices[ep] / [4,4,40], 'mean_loc', avg_loc / [4,4,40], 'total len', running_total_len, 'len before', len_before, 'len after', len_after, 'len thresh', len_thresh, 'min rad', min_rad, 'rad thresh', rad_thresh)
                         mask_rows = np.full(edges.shape[0], True)
                         path_len = skel_mp.path_length(skel_mp.path_between(ep, int(last_big_node)))
                         
@@ -978,7 +994,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                             mask_verts[n] = False
                         
     #                         if path_len < 1.5*path_len_ep:
-                        if min_rad > rad_thresh:
+                        if min_rad > rad_thresh #or sums[i] > 200000:
                             if eps[tip_hit] in flat_tip_agree_thick:
                                 print(i, area_skel_dict[eps[tip_hit]], areas[i][0], 'break2')
 
@@ -993,7 +1009,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                             flat_tip_agree_thick[eps[tip_hit]] = tip
                             area_skel_dict[eps[tip_hit]] = areas[i][0]
                             hit_tips[tip_hit] = np.min(tip_dist_nm)
-                        elif len_after > len_thresh:
+                        elif len_after > 5000:
                             print(i, 'thin')
                             flat_tip_agree_thin[eps[tip_hit]] = tip
                             area_skel_dict[eps[tip_hit]] = areas[i][0]
@@ -1003,12 +1019,10 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, rad_thresh=200, len_thres
                             print(i, 'spine')
                             flat_tip_agree_spine[eps[tip_hit]] = tip
                             area_skel_dict[eps[tip_hit]] = areas[i][0] 
+
                         break
                     else:
-                        try:
-                            running_nodes.append(node[0])
-                        except:
-                            break
+                        running_nodes.append(node[0])
         else:
             print(i, avg_loc / [4,4,40], 'filt', np.min(tip_dist_nm), hit_tips[tip_hit], min_dist)
     area_dict = {key: len_dict[key]*rad_dict[key] for key in len_dict.keys()}
@@ -1030,7 +1044,7 @@ def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_le
                                                 smooth_neighborhood=5,
 #                                                     collapse_params = {'dynamic_threshold':True}
                                                 )
-    sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, areas_good, areas_bad = get_flat_regions(mesh)
+    sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, areas = get_flat_regions(mesh)
 
     edges_thick, area_dict, mask_verts, gtips, btips, stips, all_tips = chop_thin_bits_mean(mean_locs_good_all, 
                                                                                     areas_good,
