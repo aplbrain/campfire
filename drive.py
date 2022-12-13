@@ -48,11 +48,10 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
         else:
             s3 = -1
         print("Posted", s1, s2, s3)
->>>>>>> e6b45d6bc5f61fd26d74cf2f8138796bb180eb1d
     return good_tips_thick 
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional")
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional_gt")
     n_root_id = 0
     while n_root_id < end or end == -1:
         print("N", n_root_id)

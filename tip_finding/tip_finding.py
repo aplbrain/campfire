@@ -889,7 +889,9 @@ def endpoints_from_rid(root_id, center_collapse=True):
     except:
         s = np.zeros([])
     if len(s.shape) > 0:
-        soma_center = s.pt_position.iloc[0] * np.array([4,4,40])
+        if s.shape[0] > 0:
+            print('s', s)
+            soma_center = s.pt_position.iloc[0] * np.array([4,4,40])
     else:
         soma_center=None
         print(root_id, "No Soma Found")
@@ -994,7 +996,7 @@ def chop_thin_bits_mean(mean_locs_all, areas, skel_mp, sums, rad_thresh=200, len
                             mask_verts[n] = False
                         
     #                         if path_len < 1.5*path_len_ep:
-                        if min_rad > rad_thresh #or sums[i] > 200000:
+                        if min_rad > rad_thresh: #or sums[i] > 200000:
                             if eps[tip_hit] in flat_tip_agree_thick:
                                 print(i, area_skel_dict[eps[tip_hit]], areas[i][0], 'break2')
 
@@ -1047,7 +1049,7 @@ def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_le
     sums_mask, locs, sums, graphs, normals, mean_locs_good, mean_locs_good_all, mean_locs, mean_locs_bad, areas = get_flat_regions(mesh)
 
     edges_thick, area_dict, mask_verts, gtips, btips, stips, all_tips = chop_thin_bits_mean(mean_locs_good_all, 
-                                                                                    areas_good,
+                                                                                    areas,
                                                                                     skel_mp,
                                                                                     rad_thresh=rad_thresh, 
                                                                                     len_thresh=5000,
