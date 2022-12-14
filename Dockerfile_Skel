@@ -8,4 +8,4 @@ COPY . /root/campfire
 WORKDIR /root/campfire
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
-CMD [ "python3", "drive.py", "tips", "-1", "nvq", True"]
+CMD [ "python3", "drive.py", "tips", "-1", "nvq", "True"]

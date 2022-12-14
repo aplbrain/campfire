@@ -1,0 +1,15 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: agents-cluster
+  region: us-east-1
+
+managedNodeGroups:
+  - name: agents-cpu-workers
+    labels: { role: workers }
+    instanceType: p2.xlarge
+    desiredCapacity: 20
+    volumeSize: 20
+    ssh: 
+      publicKeyName: agents
