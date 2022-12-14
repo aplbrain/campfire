@@ -12,7 +12,7 @@ spec:
         spec:
             containers:
             - name: agents-v1
-              image: 
+              image: 146702968486.dkr.ecr.us-east-1.amazonaws.com/agents/agents
               env:
               - name: MODE
                 value: "agents"

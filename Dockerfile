@@ -22,11 +22,11 @@ COPY secrets/credentials /root/.aws/credentials
 COPY secrets/intern.cfg /root/.intern/intern.cfg
 COPY secrets/neuvuequeue.cfg /root/.neuvuequeue/neuvuequeue.cfg
 
-# Test Environment variables (comment out for kubernetes run)
-ENV MODE agents
-ENV ARG2 nvq
-ENV ARG3 gpu
-ENV ARG4 agents_prod_v6
-ENV ARG5 Tip_detect_prod_v1
+# Test Environment variables (comment out for kubernetes image)
+# ENV MODE agents
+# ENV ARG2 nvq
+# ENV ARG3 gpu
+# ENV ARG4 agents_prod_v6
+# ENV ARG5 Tip_detect_prod_v1
 
 CMD . /opt/venv/bin/activate && python3 drive.py $MODE $ARG2 $ARG3 $ARG4 $ARG5

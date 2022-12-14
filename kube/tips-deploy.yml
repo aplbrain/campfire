@@ -12,7 +12,7 @@ spec:
         spec:
             containers:
             - name: tips-v1
-              image: 
+              image: 146702968486.dkr.ecr.us-east-1.amazonaws.com/agents/tips
               env:
               - name: MODE
                 value: "tips"
