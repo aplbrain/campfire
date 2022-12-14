@@ -13,7 +13,7 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
     print("RID", root_id)
-    high_confidence_tips, high_confidence_tips, low_confidence_tips  = endpoints_from_rid(root_id)
+    high_confidence_tips, med_confidence_tips, low_confidence_tips  = endpoints_from_rid(root_id)
     if delete:
         root_id_msg.delete()
     if high_confidence_tips is None:
@@ -40,7 +40,7 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
         else:
             s1 = -1
         if high_confidence_tips.shape[0] > 0:
-            s2 = nvc_post_point(C, (high_confidence_tips).astype(int), "Justin", namespace, "error_med_confidence", time_point, metadata)
+            s2 = nvc_post_point(C, (med_confidence_tips).astype(int), "Justin", namespace, "error_med_confidence", time_point, metadata)
         else:
             s2 = -1
         if low_confidence_tips.shape[0] > 0:
@@ -51,7 +51,7 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     return high_confidence_tips
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional_gt")
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional_prod")
     n_root_id = 0
     while n_root_id < end or end == -1:
         print("N", n_root_id)

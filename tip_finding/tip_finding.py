@@ -935,6 +935,7 @@ def endpoints_from_rid(root_id, center_collapse=True):
             filter_equal_dict={'pt_root_id':root_id}
         )
         return soma
+    soma_center=None
     try:
         s = get_soma(str(root_id))
     except:
@@ -1061,17 +1062,11 @@ def chop_thin_bits_mean(mean_locs_good_all, mean_locs_bad_all, areas, areas_bad,
                             mask_verts[n] = False
                         
     #                         if path_len < 1.5*path_len_ep:
-<<<<<<< HEAD
-                        if min_rad > rad_thresh: #or sums[i] > 200000:
-                            if eps[tip_hit] in flat_tip_agree_thick:
-                                print(i, area_skel_dict[eps[tip_hit]], areas[i][0], 'break2')
-=======
-                        if max_rad > 3000:
+                        if max_rad > 2000:
                             break
-                        if min_rad > rad_thresh or sums[i] > 500000:
+                        if min_rad > rad_thresh or sums[i] > 300000:
                             if eps_cc[tip_hit] in high_confidence_tips:
                                 print(i, area_skel_dict[eps_cc[tip_hit]], areas[i][0], 'break2')
->>>>>>> 5e2fe8416fc48866abcaf16bb62e765eeacb4b19
 
                                 if area_skel_dict[eps_cc[tip_hit]] < areas[i][0]:
                                     high_confidence_tips[eps_cc[tip_hit]] = tip
@@ -1084,7 +1079,7 @@ def chop_thin_bits_mean(mean_locs_good_all, mean_locs_bad_all, areas, areas_bad,
                             high_confidence_tips[eps_cc[tip_hit]] = tip
                             area_skel_dict[eps_cc[tip_hit]] = areas[i][0]
                             hit_tips[tip_hit] = np.min(tip_dist_nm)
-                        elif len_after > 10000:
+                        elif len_after > 8000:
                             print(i, 'thin', len_after, sums[i], tip / [4,4,40], min_rad, max_rad)
                             medium_confidence_tips[eps_cc[tip_hit]] = tip
                             area_skel_dict[eps_cc[tip_hit]] = areas[i][0]
@@ -1177,9 +1172,9 @@ def chop_thin_bits_mean(mean_locs_good_all, mean_locs_bad_all, areas, areas_bad,
                             mask_verts[n] = False
                         
     #                         if path_len < 1.5*path_len_ep:
-                        if max_rad > 3000:
+                        if max_rad > 2000:
                             break
-                        if min_rad > rad_thresh or sums_bad[i] > 500000:
+                        if min_rad > rad_thresh or sums_bad[i] > 300000:
                             if eps_cc[tip_hit] in high_confidence_tips:
                                 print(i, area_skel_dict[eps_cc[tip_hit]], areas_bad[i][0], 'break2')
 
@@ -1194,7 +1189,7 @@ def chop_thin_bits_mean(mean_locs_good_all, mean_locs_bad_all, areas, areas_bad,
                             medium_confidence_tips[eps_cc[tip_hit]] = tip
                             area_skel_dict[eps_cc[tip_hit]] = areas_bad[i][0]
                             hit_tips[tip_hit] = np.min(tip_dist_nm)
-                        elif len_after > 10000:
+                        elif len_after > 8000:
                             print(i, 'thin', len_after, sums_bad[i], tip / [4,4,40], min_rad, max_rad)
                             low_confidence_tips[eps_cc[tip_hit]] = tip
                             area_skel_dict[eps_cc[tip_hit]] = areas_bad[i][0]
@@ -1208,7 +1203,7 @@ def chop_thin_bits_mean(mean_locs_good_all, mean_locs_bad_all, areas, areas_bad,
                     else:
                         running_nodes.append(node[0])
         else:
-            print(i, 'areas', sums[i], avg_loc / [4,4,40], 'filt', np.min(tip_dist_nm), hit_tips[tip_hit], min_dist)
+            print(i, 'areas', sums_bad[i], avg_loc / [4,4,40], 'filt', np.min(tip_dist_nm), hit_tips[tip_hit], min_dist)
 
     return high_confidence_tips, medium_confidence_tips, low_confidence_tips
 
@@ -1228,22 +1223,16 @@ def get_endpoints(mesh, center=None, invalidation=4000, soma_radius=2000, rad_th
                                                 smooth_neighborhood=5,
 #                                                     collapse_params = {'dynamic_threshold':True}
                                                 )
-    mean_locs_good_all, mean_locs_bad_all, areas, areas_bad, sums_list, sums_list_bad = get_flat_regions(mesh)
+    mean_locs_good_all, mean_locs_bad_all, areas, areas_bad, sums_list, sums_list_bad = get_flat_regions(mesh, skel_mp)
 
-<<<<<<< HEAD
-    edges_thick, area_dict, mask_verts, gtips, btips, stips, all_tips = chop_thin_bits_mean(mean_locs_good_all, 
-                                                                                    areas,
-=======
     high_confidence_tips, medium_confidence_tips, low_confidence_tips = chop_thin_bits_mean(mean_locs_good_all, 
                                                                                     mean_locs_bad_all, 
                                                                                     areas, 
                                                                                     areas_bad, 
                                                                                     sums_list, 
                                                                                     sums_list_bad, 
->>>>>>> 5e2fe8416fc48866abcaf16bb62e765eeacb4b19
                                                                                     skel_mp,
                                                                                     rad_thresh=rad_thresh, 
-                                                                                    len_thresh=5000,
                                                                                     filt_len=filt_len,
                                                                                     path_dist_to_tip=path_dist_to_tip)
     high_confidence_tips = np.array(list(high_confidence_tips.values()))
