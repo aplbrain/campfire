@@ -13,15 +13,15 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
     root_id_msg = sqs.get_job_from_queue(queue_url_rid)
     root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=',')[0]
     print("RID", root_id)
-    good_tips_thick, good_tips_thin, good_tips_bad_thick, good_tips_bad_thin, all_tips, all_flat  = endpoints_from_rid(root_id)
+    high_confidence_tips, med_confidence_tips, low_confidence_tips  = endpoints_from_rid(root_id)
     if delete:
         root_id_msg.delete()
-    if good_tips_thick is None:
+    if high_confidence_tips is None:
         return
     if save == 'sqs':
         queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
 
-        entries=sqs.construct_endpoint_entries(good_tips_thick, root_id)
+        entries=sqs.construct_endpoint_entries(high_confidence_tips, root_id)
         while(len(entries) > 0):
             entries_send = entries[:10]
             entries = entries[10:]
@@ -35,41 +35,29 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         time_point = time.time()#str(datetime.datetime.now())
-        if good_tips_thick.shape[0] > 0:
-            s1 = nvc_post_point(C, (good_tips_thick).astype(int), "Justin", namespace, "error_high_confidence_thick", time_point, metadata)
+        if high_confidence_tips.shape[0] > 0:
+            s1 = nvc_post_point(C, (high_confidence_tips).astype(int), "Justin", namespace, "error_high_confidence_", time_point, metadata)
         else:
             s1 = -1
-        if good_tips_thin.shape[0] > 0:
-            s2 = nvc_post_point(C, (good_tips_thin).astype(int), "Justin", namespace, "error_high_confidence_thin", time_point, metadata)
+        if high_confidence_tips.shape[0] > 0:
+            s2 = nvc_post_point(C, (med_confidence_tips).astype(int), "Justin", namespace, "error_med_confidence", time_point, metadata)
         else:
             s2 = -1
-        if good_tips_bad_thick.shape[0] > 0:
-            s3 = nvc_post_point(C, (good_tips_bad_thick).astype(int), "Justin", namespace, "error_low_confidence_thick", time_point, metadata)
+        if low_confidence_tips.shape[0] > 0:
+            s3 = nvc_post_point(C, (low_confidence_tips).astype(int), "Justin", namespace, "error_low_confidence", time_point, metadata)
         else:
             s3 = -1
-        if good_tips_bad_thin.shape[0] > 0:
-            s4 = nvc_post_point(C, (good_tips_bad_thin).astype(int), "Justin", namespace, "error_low_confidence_thin", time_point, metadata)
-        else:
-            s4 = -1
-        if all_tips.shape[0] > 0:
-            s5 = nvc_post_point(C, (all_tips).astype(int), "Justin", namespace, "all_tips", time_point, metadata)
-        else:
-            s5 = -1
-        all_flat = np.array(all_flat)
-        if all_flat.shape[0] > 0:
-            s6 = nvc_post_point(C, (all_flat).astype(int), "Justin", namespace, "all_flats", time_point, metadata)
-        else:
-            s6 = -1
-        print(s1, s2, s3, s4, s5, s6)
-    return good_tips_thick 
+        print("Posted", s1, s2, s3)
+    return high_confidence_tips
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_apical")
+    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional_prod")
     n_root_id = 0
     while n_root_id < end or end == -1:
         print("N", n_root_id)
         endpoints(queue_url_rid, namespace, save, delete)
         n_root_id+=1
+        print("Done", n_root_id)
     return 1
 
 def nvc_post_point(C, points, author, namespace, name, status, metadata):
