@@ -8,7 +8,7 @@ metadata:
 managedNodeGroups:
   - name: agents-cpu-workers
     labels: { role: workers }
-    instanceType: m2.xlarge
+    instanceType: r5.xlarge
     desiredCapacity: 20
     volumeSize: 20
     ssh: 

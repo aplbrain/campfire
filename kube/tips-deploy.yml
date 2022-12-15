@@ -4,7 +4,7 @@ metadata:
     name: tips-job
 
 spec:
-    parallelism: 10
+    parallelism: 20
     template:
         metadata:
           labels:
@@ -12,16 +12,16 @@ spec:
         spec:
             containers:
             - name: tips-v1
-              image: 146702968486.dkr.ecr.us-east-1.amazonaws.com/agents/tips
-              env:
-              - name: MODE
-                value: "tips"
-              - name: ARG2
-                value: "-1"
-              - name: ARG3
-                value: "nvq"
-              - name: ARG4
-                value: "True"
-              - name: ARG5
-                value: "Tip_detect_prod_v1"
+              image: 146702968486.dkr.ecr.us-east-1.amazonaws.com/agents_tips_functional:latest
+              # env:
+              # - name: MODE
+              #   value: "tips"
+              # - name: ARG2
+              #   value: "-1"
+              # - name: ARG3
+              #   value: "nvq"
+              # - name: ARG4
+              #   value: "True"
+              # - name: ARG5
+              #   value: "Tip_detect_prod_v1"
             restartPolicy: Never
