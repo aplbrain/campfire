@@ -1018,6 +1018,7 @@ def chop_thin_bits_mean(mean_locs_good_all, mean_locs_bad_all, areas, areas_bad,
         if np.min(path_len_ep) < hit_tips[tip_hit] and min_dist < 500:
             for node in get_next_node(edges, ep):
                 node = [node]
+                last_big_node = node
                 prev_node = ep
                 running_nodes = [ep, node[0]]
 

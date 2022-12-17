@@ -61,6 +61,7 @@ def run_endpoints(end, namespace="tips", save='nvq', delete=False):
     return 1
 
 def nvc_post_point(C, points, author, namespace, name, status, metadata):
+    print('P', points.shape, points)
     if len(points.shape) == 1:
         C.post_point([str(p) for p in points], author, namespace, name, status, metadata)
     elif len(points.shape) == 0:
