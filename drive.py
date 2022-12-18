@@ -39,7 +39,7 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
             s1 = nvc_post_point(C, (high_confidence_tips).astype(int), "Justin", namespace, "error_high_confidence_", time_point, metadata)
         else:
             s1 = -1
-        if high_confidence_tips.shape[0] > 0:
+        if med_confidence_tips.shape[0] > 0:
             s2 = nvc_post_point(C, (med_confidence_tips).astype(int), "Justin", namespace, "error_med_confidence", time_point, metadata)
         else:
             s2 = -1
@@ -62,9 +62,9 @@ def run_endpoints(end, namespace="tips", save='nvq', delete=False):
 
 def nvc_post_point(C, points, author, namespace, name, status, metadata):
     print('P', points.shape, points)
-    if len(points.shape) == 1:
+    if len(points.shape) == 1 or len(points) == 1:
         C.post_point([str(p) for p in points], author, namespace, name, status, metadata)
-    elif len(points.shape) == 0:
+    elif len(points.shape) == 0 or len(points):
         return 0
     else:
         for pt in points:
