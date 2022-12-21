@@ -35,6 +35,8 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
                     }
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         time_point = time.time()#str(datetime.datetime.now())
+        if high_confidence_tips.shape[0] == 0 and med_confidence_tips.shape[0] == 0 and low_confidence_tips.shape[0]:
+            s1 = nvc_post_point(C, np.array([0, 0, 0]), "Justin", namespace, "no_tips_found", time_point, metadata)
         if high_confidence_tips.shape[0] > 0:
             s1 = nvc_post_point(C, (high_confidence_tips).astype(int), "Justin", namespace, "error_high_confidence_", time_point, metadata)
         else:
