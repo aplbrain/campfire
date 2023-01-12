@@ -232,6 +232,70 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
             merges = pd.concat([merges, ext.merges])
             ct+=1
 
+def error_fill_loop(namespace):
+    from caveclient import CAVEclient
+    C = CAVEclient.NeuvueQueue("https://queue.neuvue.io")
+    points = get_points_nvc({"namespace":namespace, 'type':['encapsulated_points'], 'agents_status':'open'})
+    idx = points.index
+
+    for i, point in enumerate(points):
+        rid = int(point.metadata['root_id'])
+        center = np.array(point.coordinate) / [2,2,1]
+        segs = error_fill(center, rid)
+        md = point.metadata
+        md['seg_merges'] = segs
+        C.patch_point(idx[i], agents_status='extension_completed', metadata = md)
+
+
+def error_fill(center, root_id):
+    import fill_voids
+    from agents import data_loader
+    from caveclient import CAVEclient
+
+    client = CAVEclient('minnie65_phase3_v1')
+    radius = (200,200,15)
+
+    seg = np.squeeze(data_loader.get_seg(center[0] - radius[0],
+                center[0] + radius[0],
+                center[1] - radius[1],
+                center[1] + radius[1],
+                center[2] - radius[2],
+                center[2] + radius[2]))
+    u, ns = np.unique(seg, return_counts=True)
+
+    u = u[np.argsort(ns)][::-1]
+        
+    seg_ids = np.array(u).astype(np.int64)
+    root_id_newest = client.chunkedgraph.get_latest_roots(root_id)
+
+    if not root_id_newest in seg_ids:
+        print('int')
+        out_of_date_mask = client.chunkedgraph.is_latest_roots(seg_ids)
+        seg_ids = np.array(seg_ids)
+        out_of_date_seg_ids = seg_ids[~(out_of_date_mask)]
+        seg_dict={}
+
+        for s in out_of_date_seg_ids:
+            print(s)
+            if s == 0:
+                seg_dict[0] = 0
+                continue
+                
+            new_s = client.chunkedgraph.get_latest_roots(s)
+            
+            if root_id in new_s:
+                seg_mask = s
+                break
+                
+            seg_ids[seg_ids == s] = new_s[-1]
+            seg_dict[new_s[-1]]=s
+        for s in seg_ids[out_of_date_mask]:
+            seg_dict[s] = s
+    mask = seg == seg_mask
+    filled = fill_voids.fill(mask)
+    diff = ~mask * filled
+    to_return = list(np.unique(seg[diff]))
+    return to_return
 
 if __name__ == "__main__":
     # Wraps the command line arguments
@@ -244,4 +308,4 @@ if __name__ == "__main__":
         namespace=str(sys.argv[5])
         run_endpoints(end, namespace, save, delete)
     if mode == 'agents':
-        run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4], rez=np.array([8,8,40]))
+        error_fill_loop('Tip_detect_defects_v3')
