@@ -110,16 +110,17 @@ def unique_rows(a):
     unique_a = np.unique(a.view([('', a.dtype)]*a.shape[1]))
     return unique_a.view(a.dtype).reshape((unique_a.shape[0], a.shape[1]))
 
-def get_soma(root_id:str):
+def get_soma(soma_id:str):
     cave_client = CAVEclient('minnie65_phase3_v1')
     soma = cave_client.materialize.query_table(
         "nucleus_neuron_svm",
-        filter_equal_dict={'pt_root_id':root_id}
+        filter_equal_dict={'id':soma_id}
     )
     return soma
 
-@backoff.on_exception(backoff.expo, Exception, max_tries=5)
-def error_locs_defects(root_id, soma_table=None, center_collapse=True):
+#@backoff.on_exception(backoff.expo, Exception, max_tries=5)
+def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse=True):
+    #print("START", root_id)
     datastack_name = "minnie65_phase3_v1"
     client = CAVEclient(datastack_name)
     vol = CloudVolume(
@@ -131,7 +132,7 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
         secrets={"token": client.auth.token}
     )
 
-    mesh = vol.mesh.get(str(root_id))
+    mesh = vol.mesh.get(str(root_id))[root_id]
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
 
     if mesh_obj.volume > 5000000000000:
@@ -143,9 +144,9 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
 
     try:
         if soma_table==None:
-            soma_table = get_soma(str(root_id))
-        if soma_table[soma_table.pt_root_id == root_id].shape[0] > 0:
-            center = np.array(soma_table[soma_table.pt_root_id == root_id].pt_position)[0] * [4,4,40]
+            soma_table = get_soma(str(soma_id))
+        if soma_table[soma_table.id == soma_id].shape[0] > 0:
+            center = np.array(soma_table[soma_table.id == soma_id].pt_position)[0] * [4,4,40]
         else:
             center=None
     except:
@@ -177,10 +178,13 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
             
     all_component = np.array(list(all_ids))
     all_component_remap = np.arange(all_component.shape[0])
-
     face_dict = {all_component[i]:all_component_remap[i] for i in range(all_component.shape[0])}
-    new_faces = np.vectorize(face_dict.get)(mesh_obj.faces)
-    new_faces = new_faces[new_faces[:, 0] != None]
+    new_faces_mask = np.isin(mesh_obj.faces, list(face_dict.keys()))
+    new_faces_mask = new_faces_mask[:, 0]*new_faces_mask[:, 1]*new_faces_mask[:, 2]
+
+    new_faces = np.vectorize(face_dict.get)(mesh_obj.faces[new_faces_mask])
+    new_faces[new_faces[:, 0] != None]
+    
     largest_component_mesh = trimesh.Trimesh(mesh_obj.vertices[all_component], new_faces)
 
     mesh_obj = largest_component_mesh
@@ -251,7 +255,7 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
                                             smooth_neighborhood=5,
 #                                                     collapse_params = {'dynamic_threshold':True}
                                             )
-
+    print("Skel done")
     # Process the skeleton to get the endpoints
     edges = skel_mp.edges.copy()
 
@@ -281,7 +285,6 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
     ct = 0
 
     closest_tip = np.zeros((centers.shape[0]))
-
 
     for center in tqdm(centers):
     #     skel_pts_dists = np.linalg.norm(skel_mp.vertices - center, axis=1)
@@ -369,10 +372,10 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
     closest_skel_pts_sub_facets = closest_skel_pts_facets[dists_defects_facets < np.inf]
     inds_sub_facets = np.arange(mean_locs.shape[0])[dists_defects_facets < np.inf]
     ranks_ep_facets = sizes_sub_facets**2 / dists_defects_sub_facets
-    ranks_ep_facets_filt = ranks_ep_facets[ranks_ep_facets > 2e7]
-    mean_locs_send_facets = mean_locs_facets[ranks_ep_facets > 2e7][np.argsort(ranks_ep_facets_filt)][::-1]
+    #ranks_ep_facets_filt = ranks_ep_facets[ranks_ep_facets > 2e7]
+    mean_locs_send_facets = mean_locs_facets[np.argsort(ranks_ep_facets)][::-1][:20]
     final_mask_facets = np.full(mean_locs_send_facets.shape[0], True)
-    tips_hit_send_facets = tips_hit_sub_facets[ranks_ep_facets > 2e7][np.argsort(ranks_ep_facets_filt)][::-1]
+    tips_hit_send_facets = tips_hit_sub_facets[np.argsort(ranks_ep_facets)][::-1][:20]
     uns, nums = np.unique(tips_hit_send_facets, return_counts=True)
 
     for un, num in zip(uns, nums):
@@ -393,19 +396,20 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
     ranks_ep = sizes_sub / dists_defects_norm * (1-pca_vec)
     ranks = sizes_sub**2 * (1-pca_vec)
 
-    ranks_ep_errors_filt = ranks_ep[ranks_ep > .1]
-    centers_ep_send_errors = centers_sub[ranks_ep > .1][np.argsort(ranks_ep_errors_filt)][::-1]
+    #ranks_ep_errors_filt = ranks_ep[ranks_ep > .1]
+    centers_ep_send_errors = centers_sub[np.argsort(ranks_ep)][::-1][:20]
     final_mask_eps = np.full(centers_ep_send_errors.shape[0], True)
-    tips_hit_send_ep = tips_hit_sub[ranks_ep > .1][np.argsort(ranks_ep_errors_filt)][::-1]
+    tips_hit_send_ep = tips_hit_sub[np.argsort(ranks_ep)][::-1][:20]
     uns, nums = np.unique(tips_hit_send_ep, return_counts=True)
 
     for un, num in zip(uns, nums):
         if num > 1:
             final_mask_eps[np.argwhere(tips_hit_send_ep == un)[1:]] = False
     centers_errors_ep = centers_ep_send_errors[final_mask_eps]
-    centers_errors = centers_sub[np.argsort(ranks)[::-1]][np.squeeze(np.argwhere(ranks[np.argsort(ranks)[::-1]] > 3500))]
+    centers_errors = centers_sub[np.argsort(ranks)[::-1]][:20]
 
-    centers_errors = centers_errors[np.min(distance_matrix(centers_errors, centers_errors_ep), axis=1)>1000]
+    #if len(centers_errors.shape) > 1 and centers_errors.shape[0] > 0 and len(centers_errors_ep.shape) > 1 and len(centers_errors_ep.shape[0] > 0):
+    #    centers_errors = centers_errors[np.min(distance_matrix(centers_errors, centers_errors_ep), axis=1)>1000]
 
     facets_send_final = mean_locs_send_facets[final_mask_facets] / [4,4,40]
     errors_send = centers_errors / [4,4,40]
@@ -413,7 +417,7 @@ def error_locs_defects(root_id, soma_table=None, center_collapse=True):
     encapsulated_centers = [e[0] for e in encapsulated_ids]
     encapsulated_lens = [e[1] for e in encapsulated_ids]
     sorted_encapsulated_send = np.array(encapsulated_centers)[np.argsort(encapsulated_lens)][::-1]
-    return sorted_encapsulated_send, facets_send_final, errors_send, errors_tips_send
+    return sorted_encapsulated_send, facets_send_final, errors_send, errors_tips_send, np.squeeze(ranks_ep_facets[[np.argsort(ranks_ep_facets)][::-1][:20]]), np.squeeze(ranks[np.argsort(ranks)[::-1]][:20]), np.squeeze(ranks_ep[np.argsort(ranks_ep)][::-1][:20])
 
 
 def return_filled(root_id, loc):
@@ -439,14 +443,14 @@ def return_filled(root_id, loc):
     root_id_newest = client.chunkedgraph.get_latest_roots(root_id)
 
     if not root_id_newest in seg_ids:
-        print('int')
+        #print('int')
         out_of_date_mask = client.chunkedgraph.is_latest_roots(seg_ids)
         seg_ids = np.array(seg_ids)
         out_of_date_seg_ids = seg_ids[~(out_of_date_mask)]
         seg_dict={}
 
         for s in out_of_date_seg_ids:
-            print(s)
+         #   print(s)
             if s == 0:
                 seg_dict[0] = 0
                 continue
