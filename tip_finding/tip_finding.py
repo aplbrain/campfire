@@ -131,7 +131,7 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
         fill_missing=True,
         secrets={"token": client.auth.token}
     )
-
+    print("Downloading Mesh")
     mesh = vol.mesh.get(str(root_id))[root_id]
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
 
@@ -139,6 +139,19 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
         print("TOO BIG, SKIPPING")
     trimesh.repair.fix_normals(mesh_obj)
     mesh_obj.fill_holes()
+    # SKELETONIZE - if we are just looking for general errors, not errors at endpoints, this can be skipped
+    skel_mp = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh_obj.vertices, 
+                                            mesh_obj.faces),
+                                            invalidation_d=20000,
+                                            shape_function='cone',
+                                            collapse_function='branch',
+#                                             soma_radius = soma_radius,
+                                            soma_pt=center,
+                                            smooth_neighborhood=5,
+#                                                     collapse_params = {'dynamic_threshold':True}
+                                            )
+    print("Skel done")
+    print("Subselecting largest connected component of mesh")
     ccs_graph = trimesh.graph.connected_components(mesh_obj.edges)
     ccs_len = [len(c) for c in ccs_graph]
 
@@ -243,22 +256,21 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     all_nodes = np.array(list(all_nodes))
     # sharp_pts = mesh_obj.vertices[all_nodes]
     centers = np.array([np.mean(mesh_obj.vertices[list(ppts)],axis=0) for ppts in lens])
-
-    # SKELETONIZE - if we are just looking for general errors, not errors at endpoints, this can be skipped
-    skel_mp = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh_obj.vertices, 
-                                            mesh_obj.faces),
-                                            invalidation_d=20000,
-                                            shape_function='cone',
-                                            collapse_function='branch',
-#                                             soma_radius = soma_radius,
-                                            soma_pt=center,
-                                            smooth_neighborhood=5,
-#                                                     collapse_params = {'dynamic_threshold':True}
-                                            )
-    print("Skel done")
+    # Process the skeleton to get the endpoints
+    interior_cc_mask = set()
+    el = nx.from_edgelist(skel_mp.edges)
+    comps = list(nx.connected_components(el))
+    for c in comps:
+        if len(c) < 10000:
+            n_con = largest_component_mesh.contains(skel_mp.vertices[list(c)])
+            if np.sum(n_con) / n_con.shape[0] > .05:
+                interior_cc_mask.update(list(c))
     # Process the skeleton to get the endpoints
     edges = skel_mp.edges.copy()
 
+    edge_mask = ~np.isin(edges, interior_cc_mask)
+    edge_mask = edge_mask[:, 0] + edge_mask[:, 1]
+    edges = edges[edge_mask]
     edges_flat  = edges.flatten()
     edge_bins = np.bincount(edges_flat) 
 
