@@ -62,12 +62,14 @@ def errors_defects_facets(queue_url_rid, namespace='Errors_defects', save='nvq',
     #soma_id = root_id_soma[:root_id_soma.find(':')]
     #root_id = root_id_soma[root_id_soma.find(':') + 1:]
 
-    print("RID", root_id)
+    print("RID Processing", root_id)
     st = pickle.load(open('soma_table.p', 'rb'))
 
-    sorted_encapsulated_send, facets_send_final, errors_send, errors_tips_send, rf, re, re_ep = error_locs_defects(root_id, soma_id, soma_table=st)
-    #if delete:
-    #    root_id_msg.delete()
+    r = error_locs_defects(root_id, soma_id, soma_table=st)
+    if r is None:
+        return
+    sorted_encapsulated_send, facets_send_final, errors_send, errors_tips_send, rf, re, re_ep = r
+
 
     # if save == 'sqs':
     #     queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
@@ -105,24 +107,24 @@ def errors_defects_facets(queue_url_rid, namespace='Errors_defects', save='nvq',
         else:
             s4 = -1
         #print("Posted", s1, s2, s3)
+    if delete:
+        root_id_msg.delete()
     return sorted_encapsulated_send
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
+
     queue_url_rid = sqs.get_or_create_queue("Root_ids_functional_prod")
+    print('Run endpoints', end, queue_url_rid)
     #root_ids = pickle.load(open('root_ids.p', 'rb'))
     n_root_id = 0
     while n_root_id < end or end == -1:
         print("N", n_root_id)
-        try:
-            errors_defects_facets(queue_url_rid, namespace, save, delete)
-        except:
-            pass
+        errors_defects_facets(queue_url_rid, namespace, save, delete)
         n_root_id+=1
         print("Done", n_root_id)
     return 1
 
 def nvc_post_point(C, points, author, namespace, name, status, metadata, weights):
-    print('P', points.shape, points)
     import copy
     base_metadata = copy.deepcopy(metadata)
     if len(points.shape) == 1:

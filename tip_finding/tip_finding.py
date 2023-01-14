@@ -135,14 +135,24 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     mesh = vol.mesh.get(str(root_id))[root_id]
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
 
-    if mesh_obj.volume > 5000000000000:
+    if mesh_obj.volume > 3000000000000:
         print("TOO BIG, SKIPPING")
+        return None
     trimesh.repair.fix_normals(mesh_obj)
     mesh_obj.fill_holes()
     # SKELETONIZE - if we are just looking for general errors, not errors at endpoints, this can be skipped
+    try:
+        if soma_table==None:
+            soma_table = get_soma(str(soma_id))
+        if soma_table[soma_table.id == soma_id].shape[0] > 0:
+            center = np.array(soma_table[soma_table.id == soma_id].pt_position)[0] * [4,4,40]
+        else:
+            center=None
+    except:
+        center = None
     skel_mp = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh_obj.vertices, 
                                             mesh_obj.faces),
-                                            invalidation_d=20000,
+                                            invalidation_d=15000,
                                             shape_function='cone',
                                             collapse_function='branch',
 #                                             soma_radius = soma_radius,
@@ -154,16 +164,6 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     print("Subselecting largest connected component of mesh")
     ccs_graph = trimesh.graph.connected_components(mesh_obj.edges)
     ccs_len = [len(c) for c in ccs_graph]
-
-    try:
-        if soma_table==None:
-            soma_table = get_soma(str(soma_id))
-        if soma_table[soma_table.id == soma_id].shape[0] > 0:
-            center = np.array(soma_table[soma_table.id == soma_id].pt_position)[0] * [4,4,40]
-        else:
-            center=None
-    except:
-        center = None
 
     # Subselect the parts of the mesh that are not inside one another 
     # the other components are an artifact of the soma seg and small unfilled sections
