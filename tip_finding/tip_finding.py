@@ -118,9 +118,7 @@ def get_soma(soma_id:str):
     )
     return soma
 
-#@backoff.on_exception(backoff.expo, Exception, max_tries=5)
-def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse=True):
-    #print("START", root_id)
+def get_and_process_mesh(root_id):
     datastack_name = "minnie65_phase3_v1"
     client = CAVEclient(datastack_name)
     vol = CloudVolume(
@@ -140,28 +138,11 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
         return None
     trimesh.repair.fix_normals(mesh_obj)
     mesh_obj.fill_holes()
-    # SKELETONIZE - if we are just looking for general errors, not errors at endpoints, this can be skipped
-    try:
-        if soma_table==None:
-            soma_table = get_soma(str(soma_id))
-        if soma_table[soma_table.id == soma_id].shape[0] > 0:
-            center = np.array(soma_table[soma_table.id == soma_id].pt_position)[0] * [4,4,40]
-        else:
-            center=None
-    except:
-        center = None
-    skel_mp = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh_obj.vertices, 
-                                            mesh_obj.faces),
-                                            invalidation_d=15000,
-                                            shape_function='cone',
-                                            collapse_function='branch',
-#                                             soma_radius = soma_radius,
-                                            soma_pt=center,
-                                            smooth_neighborhood=5,
-#                                                     collapse_params = {'dynamic_threshold':True}
-                                            )
-    print("Skel done")
-    print("Subselecting largest connected component of mesh")
+
+    return mesh_obj
+
+def process_mesh_ccs(mesh_obj):
+    print("Processing CC's")
     ccs_graph = trimesh.graph.connected_components(mesh_obj.edges)
     ccs_len = [len(c) for c in ccs_graph]
 
@@ -201,90 +182,10 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     largest_component_mesh = trimesh.Trimesh(mesh_obj.vertices[all_component], new_faces)
 
     mesh_obj = largest_component_mesh
-    # find edges that only occur once..  might be faster to find these in the sparse matrix..
-    bad_edges = trimesh.grouping.group_rows(
-        mesh_obj.edges_sorted, require_count=1)
-    bad_edges_ind = mesh_obj.edges[bad_edges]
-    sparse_edges = mesh_obj.edges_sparse
-    xs = list(bad_edges_ind[:, 0]) + list(bad_edges_ind[:, 1]) 
-    ys = list(bad_edges_ind[:, 1]) + list(bad_edges_ind[:, 0])
-    vs = [1]*bad_edges_ind.shape[0]*2
-    bad_inds = scipy.sparse.coo_matrix((vs, (xs, ys)), shape=(mesh_obj.vertices.shape[0], mesh_obj.vertices.shape[0]))
-    # Make it symmetrical and add identity so each integrates from itself too, then subtract singleton edges
-    # I noticed that the number of asymmetrical edges vs the number of single edges I find from group rows
-    # Are close but different. Haven't looked into that yet. Also removing edges 1 hop away from single edges to remove bias towards
-    # Holes in the mesh that are caused by mesh construction errors as opposed to segmentation errors
-    sparse_edges = mesh_obj.edges_sparse + mesh_obj.edges_sparse.T + identity(mesh_obj.edges_sparse.shape[0]) - sparse_edges.multiply(bad_inds) - bad_inds
-    degs = mesh_obj.vertex_degree + 1
+    return mesh_obj, encapsulated_ids
 
-    # N_iter is a smoothing parameter here. The loop below smooths the vertex error about the mesh to get more consistent connected regions
-    n_iter = 2
-    angle_sum = np.array(abs(mesh_obj.face_angles_sparse).sum(axis=1)).flatten()
-    defs = (2 * np.pi) - angle_sum
-
-    abs_defs = np.abs(defs)
-    abs_defs_i = abs_defs.copy()
-    for i in range(n_iter):
-        abs_defs_i = sparse_edges.dot(abs_defs_i) / degs
-    
-    a = .75
-
-    verts_select = np.argwhere((abs_defs_i > a))# & (abs_defs < 2.5))
-    edges_mask = np.isin(mesh_obj.edges, verts_select)
-    edges_mask[bad_edges] = False
-    edges_select = edges_mask[:, 0] * edges_mask[:, 1]
-    edges_select = mesh_obj.edges[edges_select]
-
-    G = nx.from_edgelist(edges_select)#f_edge_sub)
-
-    ccs = nx.connected_components(G)
-    subgraphs = [G.subgraph(cc).copy() for cc in ccs]
-
-    lens = []
-    lengths = []
-    for i in tqdm(range(len(subgraphs))):
-        ns = np.array(list(subgraphs[i].nodes()))
-    #     ns = ns[abs_defs[ns ]]
-        l = len(ns)
-        if l > 20 and l < 5000:
-            lens.append(ns)
-            lengths.append(l)
-    lsort = np.argsort(lengths)
-    all_nodes = set()
-    for l in lens:
-        all_nodes.update(l)
-    all_nodes = np.array(list(all_nodes))
-    # sharp_pts = mesh_obj.vertices[all_nodes]
-    centers = np.array([np.mean(mesh_obj.vertices[list(ppts)],axis=0) for ppts in lens])
-    # Process the skeleton to get the endpoints
-    interior_cc_mask = set()
-    el = nx.from_edgelist(skel_mp.edges)
-    comps = list(nx.connected_components(el))
-    for c in comps:
-        if len(c) < 10000:
-            n_con = largest_component_mesh.contains(skel_mp.vertices[list(c)])
-            if np.sum(n_con) / n_con.shape[0] > .05:
-                interior_cc_mask.update(list(c))
-    # Process the skeleton to get the endpoints
-    edges = skel_mp.edges.copy()
-
-    edge_mask = ~np.isin(edges, interior_cc_mask)
-    edge_mask = edge_mask[:, 0] + edge_mask[:, 1]
-    edges = edges[edge_mask]
-    edges_flat  = edges.flatten()
-    edge_bins = np.bincount(edges_flat) 
-
-    bps = np.squeeze(np.argwhere(edge_bins==3))
-    eps = np.squeeze(np.argwhere(edge_bins==1))
-    eps_nm = skel_mp.vertices[eps]
-
-    eps_comp = distance_matrix(eps_nm, eps_nm)
-    eps_comp[eps_comp == 0] = np.inf
-    eps_thresh = np.argwhere(~(np.min(eps_comp, axis=0) < 3000))
-
-    eps = np.squeeze(eps[eps_thresh])
-    eps_nm = np.squeeze(eps_nm[eps_thresh])
-
+def process_mesh_errors(mesh_obj, centers, eps, eps_nm, lens, skel_mp):
+    print("Processing mesh errors")
     path_to_root_dict = {}
     for ep in eps:
         path_to_root_dict[ep] = skel_mp.path_to_root(ep)
@@ -333,6 +234,37 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     closest_skel_pts_sub = closest_skel_pts[dists_defects < np.inf]
     inds_sub = np.arange(centers.shape[0])[dists_defects < np.inf]
 
+
+    # Also ranking each component based on its PCA- if the first component is big enough, the points are mostly linear
+    # These point sets seem to be less likely to be true errors
+    from sklearn.decomposition import PCA
+    pca_vec = np.zeros(inds_sub.shape[0])
+    for i in range(inds_sub.shape[0]):
+        pca = PCA()#n_components=2)
+        pca.fit(mesh_obj.vertices[lens[inds_sub[i]]])
+
+        pca_vec[i] = pca.explained_variance_ratio_[0]
+
+    dists_defects_sub[dists_defects_sub < 4000] = 100
+    dists_defects_norm = dists_defects_sub #/ np.max(dists_defects_sub)
+    ranks_ep = sizes_sub / dists_defects_norm * (1-pca_vec)
+    ranks = sizes_sub**2 * (1-pca_vec)
+
+    #ranks_ep_errors_filt = ranks_ep[ranks_ep > .1]
+    centers_ep_send_errors = centers_sub[np.argsort(ranks_ep)][::-1][:20]
+    final_mask_eps = np.full(centers_ep_send_errors.shape[0], True)
+    tips_hit_send_ep = tips_hit_sub[np.argsort(ranks_ep)][::-1][:20]
+    uns, nums = np.unique(tips_hit_send_ep, return_counts=True)
+
+    for un, num in zip(uns, nums):
+        if num > 1:
+            final_mask_eps[np.argwhere(tips_hit_send_ep == un)[1:]] = False
+    centers_errors_ep = centers_ep_send_errors[final_mask_eps]
+    centers_errors = centers_sub[np.argsort(ranks)[::-1]][:20]
+    return centers_errors, centers_errors_ep, ranks, ranks_ep
+
+def process_mesh_facets(mesh_obj, skel_mp, mesh_map, eps, path_to_root_dict, eps_nm):
+    print("Processing facets")
     locs = np.argwhere(mesh_obj.facets_area > 50000)
 
     mesh_coords = mesh_obj.vertices[mesh_obj.faces]
@@ -354,7 +286,6 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     ct = 0
 
     closest_tip_facets = np.zeros((mean_locs.shape[0]))
-
 
     for center in tqdm(mean_locs):
 
@@ -393,37 +324,132 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     for un, num in zip(uns, nums):
         if num > 1:
             final_mask_facets[np.argwhere(tips_hit_send_facets == un)[1:]] = False
-    # Also ranking each component based on its PCA- if the first component is big enough, the points are mostly linear
-    # These point sets seem to be less likely to be true errors
-    from sklearn.decomposition import PCA
-    pca_vec = np.zeros(inds_sub.shape[0])
-    for i in range(inds_sub.shape[0]):
-        pca = PCA()#n_components=2)
-        pca.fit(mesh_obj.vertices[lens[inds_sub[i]]])
+    facets_send_final = mean_locs_send_facets[final_mask_facets] / [4,4,40]
+    return facets_send_final, ranks_ep_facets
 
-        pca_vec[i] = pca.explained_variance_ratio_[0]
+def process_defects(mesh_obj, a=.75):
+    bad_edges = trimesh.grouping.group_rows(
+        mesh_obj.edges_sorted, require_count=1)
+    bad_edges_ind = mesh_obj.edges[bad_edges]
+    sparse_edges = mesh_obj.edges_sparse
+    xs = list(bad_edges_ind[:, 0]) + list(bad_edges_ind[:, 1]) 
+    ys = list(bad_edges_ind[:, 1]) + list(bad_edges_ind[:, 0])
+    vs = [1]*bad_edges_ind.shape[0]*2
+    bad_inds = scipy.sparse.coo_matrix((vs, (xs, ys)), shape=(mesh_obj.vertices.shape[0], mesh_obj.vertices.shape[0]))
+    # Make it symmetrical and add identity so each integrates from itself too, then subtract singleton edges
+    # I noticed that the number of asymmetrical edges vs the number of single edges I find from group rows
+    # Are close but different. Haven't looked into that yet. Also removing edges 1 hop away from single edges to remove bias towards
+    # Holes in the mesh that are caused by mesh construction errors as opposed to segmentation errors
+    sparse_edges = mesh_obj.edges_sparse + mesh_obj.edges_sparse.T + identity(mesh_obj.edges_sparse.shape[0]) - sparse_edges.multiply(bad_inds) - bad_inds
+    degs = mesh_obj.vertex_degree + 1
 
-    dists_defects_sub[dists_defects_sub < 4000] = 100
-    dists_defects_norm = dists_defects_sub #/ np.max(dists_defects_sub)
-    ranks_ep = sizes_sub / dists_defects_norm * (1-pca_vec)
-    ranks = sizes_sub**2 * (1-pca_vec)
+    # N_iter is a smoothing parameter here. The loop below smooths the vertex error about the mesh to get more consistent connected regions
+    n_iter = 2
+    angle_sum = np.array(abs(mesh_obj.face_angles_sparse).sum(axis=1)).flatten()
+    defs = (2 * np.pi) - angle_sum
 
-    #ranks_ep_errors_filt = ranks_ep[ranks_ep > .1]
-    centers_ep_send_errors = centers_sub[np.argsort(ranks_ep)][::-1][:20]
-    final_mask_eps = np.full(centers_ep_send_errors.shape[0], True)
-    tips_hit_send_ep = tips_hit_sub[np.argsort(ranks_ep)][::-1][:20]
-    uns, nums = np.unique(tips_hit_send_ep, return_counts=True)
+    abs_defs = np.abs(defs)
+    abs_defs_i = abs_defs.copy()
+    for i in range(n_iter):
+        abs_defs_i = sparse_edges.dot(abs_defs_i) / degs
+    
+    verts_select = np.argwhere((abs_defs_i > a))# & (abs_defs < 2.5))
 
-    for un, num in zip(uns, nums):
-        if num > 1:
-            final_mask_eps[np.argwhere(tips_hit_send_ep == un)[1:]] = False
-    centers_errors_ep = centers_ep_send_errors[final_mask_eps]
-    centers_errors = centers_sub[np.argsort(ranks)[::-1]][:20]
+    edges_mask, bad_edges = np.isin(mesh_obj.edges, verts_select)
+    edges_mask[bad_edges] = False
+    edges_select = edges_mask[:, 0] * edges_mask[:, 1]
+    edges_select = mesh_obj.edges[edges_select]
 
+    G = nx.from_edgelist(edges_select)#f_edge_sub)
+
+    ccs = nx.connected_components(G)
+    subgraphs = [G.subgraph(cc).copy() for cc in ccs]
+
+    lens = []
+    lengths = []
+    for i in tqdm(range(len(subgraphs))):
+        ns = np.array(list(subgraphs[i].nodes()))
+    #     ns = ns[abs_defs[ns ]]
+        l = len(ns)
+        if l > 20 and l < 5000:
+            lens.append(ns)
+            lengths.append(l)
+    all_nodes = set()
+    for l in lens:
+        all_nodes.update(l)
+    all_nodes = np.array(list(all_nodes))
+    # sharp_pts = mesh_obj.vertices[all_nodes]
+    centers = np.array([np.mean(mesh_obj.vertices[list(ppts)],axis=0) for ppts in lens])
+
+    return centers, lens
+
+def process_endpoints(mesh_obj, skel_mp):
+    # Process the skeleton to get the endpoints
+    interior_cc_mask = set()
+    el = nx.from_edgelist(skel_mp.edges)
+    comps = list(nx.connected_components(el))
+    for c in comps:
+        if len(c) < 10000:
+            n_con = mesh_obj.contains(skel_mp.vertices[list(c)])
+            if np.sum(n_con) / n_con.shape[0] > .05:
+                interior_cc_mask.update(list(c))
+    # Process the skeleton to get the endpoints
+    edges = skel_mp.edges.copy()
+
+    edge_mask = ~np.isin(edges, interior_cc_mask)
+    edge_mask = edge_mask[:, 0] + edge_mask[:, 1]
+    edges = edges[edge_mask]
+    edges_flat  = edges.flatten()
+    edge_bins = np.bincount(edges_flat) 
+
+    eps = np.squeeze(np.argwhere(edge_bins==1))
+    eps_nm = skel_mp.vertices[eps]
+
+    eps_comp = distance_matrix(eps_nm, eps_nm)
+    eps_comp[eps_comp == 0] = np.inf
+    eps_thresh = np.argwhere(~(np.min(eps_comp, axis=0) < 3000))
+
+    eps = np.squeeze(eps[eps_thresh])
+    eps_nm = np.squeeze(eps_nm[eps_thresh])
+    return eps, eps_nm
+
+#@backoff.on_exception(backoff.expo, Exception, max_tries=5)
+def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse=True):
+    #print("START", root_id)
+
+    mesh_obj = get_and_process_mesh(root_id)
+    # SKELETONIZE - if we are just looking for general errors, not errors at endpoints, this can be skipped
+    try:
+        if soma_table==None:
+            soma_table = get_soma(str(soma_id))
+        if soma_table[soma_table.id == soma_id].shape[0] > 0:
+            center = np.array(soma_table[soma_table.id == soma_id].pt_position)[0] * [4,4,40]
+        else:
+            center=None
+    except:
+        center = None
+    skel_mp = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh_obj.vertices, 
+                                            mesh_obj.faces),
+                                            invalidation_d=15000,
+                                            shape_function='cone',
+                                            collapse_function='branch',
+#                                             soma_radius = soma_radius,
+                                            soma_pt=center,
+                                            smooth_neighborhood=5,
+#                                                     collapse_params = {'dynamic_threshold':True}
+                                            )
+    print("Skel done")
+    print("Subselecting largest connected component of mesh")
+    mesh_obj, encapsulated_ids = process_mesh_ccs(mesh_obj)
+    # find edges that only occur once..  might be faster to find these in the sparse matrix..
+    centers, lens = process_defects(mesh_obj)
+    eps, eps_nm = process_endpoints(mesh_obj, skel_mp)
+
+    centers_errors, centers_errors_ep, ranks, ranks_ep = process_mesh_errors(mesh_obj, centers, eps, eps_nm, lens, skel_mp)
     #if len(centers_errors.shape) > 1 and centers_errors.shape[0] > 0 and len(centers_errors_ep.shape) > 1 and len(centers_errors_ep.shape[0] > 0):
     #    centers_errors = centers_errors[np.min(distance_matrix(centers_errors, centers_errors_ep), axis=1)>1000]
+    facets_send_final, ranks_ep_facets = process_mesh_facets(mesh_obj)
 
-    facets_send_final = mean_locs_send_facets[final_mask_facets] / [4,4,40]
     errors_send = centers_errors / [4,4,40]
     errors_tips_send = centers_errors_ep / [4,4,40]
     encapsulated_centers = [e[0] for e in encapsulated_ids]
