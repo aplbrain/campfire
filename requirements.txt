@@ -10,4 +10,3 @@ caveclient
 networkx
 connected-components-3d
 scipy
-fillvoids
