@@ -217,20 +217,25 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
             ct+=1
 
 def error_fill_loop(namespace):
-    from caveclient import CAVEclient
-    C = CAVEclient.NeuvueQueue("https://queue.neuvue.io")
+    import neuvueclient as Client
+    C = Client.NeuvueQueue("https://queue.neuvue.io")
     points = get_points_nvc({"namespace":namespace, 'type':['encapsulated_points'], 'agents_status':'open'})
     idx = points.index
 
-    for i, point in enumerate(points):
+    for i in range(points.shape[0]):
+
+        point = points.iloc[i]
         rid = int(point.metadata['root_id'])
+        print("I", i, rid)
         center = np.array(point.coordinate) / [2,2,1]
         segs = error_fill(center, rid)
-        md = point.metadata
-        md['seg_merges'] = segs
-        C.patch_point(idx[i], agents_status='extension_completed', metadata = md)
+        #md = point.metadata
+        #md['seg_merges'] = segs
+        C.post_agent(str(rid), str(segs), [int(c) for c in center], {str(rid):10}, {'segs':str(segs)}, 'islands_v3') 
+                
+        C.patch_point(idx[i], agents_status='extension_completed')
 
-
+    
 def error_fill(center, root_id):
     import fill_voids
     from agents import data_loader
@@ -239,46 +244,52 @@ def error_fill(center, root_id):
     client = CAVEclient('minnie65_phase3_v1')
     radius = (200,200,15)
 
-    seg = np.squeeze(data_loader.get_seg(center[0] - radius[0],
-                center[0] + radius[0],
-                center[1] - radius[1],
-                center[1] + radius[1],
-                center[2] - radius[2],
-                center[2] + radius[2]))
+    try:
+        seg = np.squeeze(data_loader.get_seg(center[0] - radius[0],
+                                         center[0] + radius[0],
+                                         center[1] - radius[1],
+                                         center[1] + radius[1],
+                                         center[2] - radius[2],
+                                         center[2] + radius[2]))
+    except:
+        return []
     u, ns = np.unique(seg, return_counts=True)
-
+    print("C", center)
     u = u[np.argsort(ns)][::-1]
-        
     seg_ids = np.array(u).astype(np.int64)
-    root_id_newest = client.chunkedgraph.get_latest_roots(root_id)
-
-    if not root_id_newest in seg_ids:
-        print('int')
+    seg_mask = -1
+    if not root_id in seg_ids:
+        root_id = client.chunkedgraph.get_latest_roots(root_id)
         out_of_date_mask = client.chunkedgraph.is_latest_roots(seg_ids)
         seg_ids = np.array(seg_ids)
         out_of_date_seg_ids = seg_ids[~(out_of_date_mask)]
         seg_dict={}
-
+        if out_of_date_seg_ids.shape[0] == 0:
+            return [-1]
         for s in out_of_date_seg_ids:
-            print(s)
+
             if s == 0:
                 seg_dict[0] = 0
                 continue
-                
             new_s = client.chunkedgraph.get_latest_roots(s)
-            
+            print(s, new_s)
             if root_id in new_s:
                 seg_mask = s
                 break
-                
             seg_ids[seg_ids == s] = new_s[-1]
             seg_dict[new_s[-1]]=s
         for s in seg_ids[out_of_date_mask]:
             seg_dict[s] = s
+    else:
+        seg_mask = root_id
+    if seg_mask == -1:
+        return [-1]
     mask = seg == seg_mask
+
     filled = fill_voids.fill(mask)
     diff = ~mask * filled
-    to_return = list(np.unique(seg[diff]))
+    seg_return = np.unique(seg[diff])
+    to_return = seg_return[seg_return != 0]
     return to_return
 
 if __name__ == "__main__":
@@ -292,4 +303,4 @@ if __name__ == "__main__":
         namespace=str(sys.argv[5])
         errors_defects_facets(end, namespace, save, delete)
     if mode == 'agents':
-        error_fill_loop('Tip_detect_defects_v3')
+        error_fill_loop('Tip_detect_defects_v7')
