@@ -439,7 +439,7 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
 #                                             soma_radius = soma_radius,
                                             soma_pt=center,
                                             smooth_neighborhood=5,
-                                            cc_vertex_thresh=3000
+                                            cc_vertex_thresh=30000
 #                                                     collapse_params = {'dynamic_threshold':True}
                                             )
     print("Skel done")
