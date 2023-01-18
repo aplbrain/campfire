@@ -137,7 +137,6 @@ def nvc_post_point(C, points, author, namespace, name, status, metadata, weights
         for i, pt in enumerate(points):
             metadata = copy.deepcopy(base_metadata)
             if len(weights) > 0:
-                print(weights.shape, points.shape)
                 metadata['weight'] = weights[i]
             C.post_point([str(p) for p in pt], author, namespace, name, status, metadata)
     return 1

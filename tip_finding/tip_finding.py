@@ -132,6 +132,7 @@ def get_and_process_mesh(root_id):
     print("Downloading Mesh")
     mesh = vol.mesh.get(str(root_id))[root_id]
     mesh_obj = trimesh.Trimesh(np.divide(mesh.vertices, np.array([1,1,1])), mesh.faces)
+    print("Vertices: ", mesh.vertices.shape[0])
 
     if mesh_obj.volume > 4000000000000:
         print("TOO BIG, SKIPPING")
