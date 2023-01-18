@@ -1,17 +1,16 @@
 from cloudvolume import CloudVolume
-import backoff
-from meshparty import skeletonize, trimesh_io, meshwork
+from meshparty import skeletonize, trimesh_io
 from caveclient import CAVEclient
 import trimesh
 import numpy as np
 
 import datetime
 import networkx as nx
-from trimesh.voxel import creation as make_voxels
 from scipy.sparse import identity
 from scipy.spatial import distance_matrix
 import scipy 
 from tqdm import tqdm
+import aws.sqs as sqs
 
 def check_axon(point, seg_id, distance=2500):
 
@@ -136,6 +135,12 @@ def get_and_process_mesh(root_id):
 
     if mesh_obj.volume > 4000000000000:
         print("TOO BIG, SKIPPING")
+        queue_url_endpoints = sqs.get_or_create_queue("root_ids_functional_dlqueue")
+
+        entries=sqs.construct_rootid_entries([root_id])
+
+        sqs.send_batch(queue_url_endpoints, entries)
+
         return None
     trimesh.repair.fix_normals(mesh_obj)
     mesh_obj.fill_holes()
@@ -171,7 +176,7 @@ def process_mesh_ccs(mesh_obj):
             if len(ccs_graph[i]) < 1000:
                 encapsulated_ids.append((np.mean(mesh_obj.vertices[ccs_graph[i]], axis=0)/[4,4,40], len(ccs_graph[i])))
             
-    all_component = np.array(list(all_ids))
+    all_component = np.array(list(ccs_graph[np.argmax(ccs_len)]))
     all_component_remap = np.arange(all_component.shape[0])
     face_dict = {all_component[i]:all_component_remap[i] for i in range(all_component.shape[0])}
     new_faces_mask = np.isin(mesh_obj.faces, list(face_dict.keys()))
@@ -183,7 +188,7 @@ def process_mesh_ccs(mesh_obj):
     largest_component_mesh = trimesh.Trimesh(mesh_obj.vertices[all_component], new_faces)
 
     mesh_obj = largest_component_mesh
-    return mesh_obj, encapsulated_ids
+    return mesh_obj, encapsulated_ids, np.max(ccs_len)
 
 def process_mesh_errors(mesh_obj, centers, eps, eps_nm, lens, skel_mp):
     print("Processing mesh errors")
@@ -432,6 +437,9 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
             center=None
     except:
         center = None
+    print("Subselecting largest connected component of mesh")
+    mesh_obj, encapsulated_ids, max_verts = process_mesh_ccs(mesh_obj)
+
     skel_mp = skeletonize.skeletonize_mesh(trimesh_io.Mesh(mesh_obj.vertices, 
                                             mesh_obj.faces),
                                             invalidation_d=15000,
@@ -440,12 +448,11 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
 #                                             soma_radius = soma_radius,
                                             soma_pt=center,
                                             smooth_neighborhood=5,
-                                            cc_vertex_thresh=30000
+                                            cc_vertex_thresh=max_verts - 10
 #                                                     collapse_params = {'dynamic_threshold':True}
                                             )
     print("Skel done")
-    print("Subselecting largest connected component of mesh")
-    mesh_obj, encapsulated_ids = process_mesh_ccs(mesh_obj)
+
     # find edges that only occur once..  might be faster to find these in the sparse matrix..
     centers, lens = process_defects(mesh_obj)
     eps, eps_nm = process_endpoints(mesh_obj, skel_mp)

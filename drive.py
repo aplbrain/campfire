@@ -67,6 +67,7 @@ def errors_defects_facets(queue_url_rid, namespace='Errors_defects', save='nvq',
 
     r = error_locs_defects(root_id, soma_id, soma_table=st)
     if r is None:
+        root_id_msg.delete()
         return
     sorted_encapsulated_send, facets_send_final, errors_send, errors_tips_send, rf, re, re_ep = r
 
