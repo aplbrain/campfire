@@ -114,7 +114,7 @@ def errors_defects_facets(queue_url_rid, namespace='Errors_defects', save='nvq',
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
 
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional_prod")
+    queue_url_rid = sqs.get_or_create_queue("root_ids_functional_dlqueue")
     print('Run endpoints', end, queue_url_rid)
     #root_ids = pickle.load(open('root_ids.p', 'rb'))
     n_root_id = 0
@@ -145,7 +145,7 @@ def nvc_post_point(C, points, author, namespace, name, status, metadata, weights
 def get_points_nvc(filt_dict):
     import neuvueclient as Client
     C = Client.NeuvueQueue("https://queue.neuvue.io")
-    return C.get_points(filt_dict)
+    return C.get_points(filt_dict,limit=50000).iloc[21000:]
 
 def segment_points(root_id, endpoint, point_id, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, namespace='Agents', direction_test=True):
@@ -246,10 +246,10 @@ def error_fill_loop(namespace):
         rid = int(point.metadata['root_id'])
         print("I", i, rid)
         center = np.array(point.coordinate) / [2,2,1]
-        segs = error_fill(center, rid)
+        segs, seg_locs = error_fill(center, rid)
         #md = point.metadata
         #md['seg_merges'] = segs
-        C.post_agent(str(rid), str(segs), [int(c) for c in center], {str(rid):10}, {'segs':str(segs)}, 'islands_v3') 
+        C.post_agent(str(rid), str(seg_locs)+ "?" + str(segs), [int(c) for c in center], seg_locs, {'segs':str(segs)}, 'islands_v4') 
                 
         C.patch_point(idx[i], agents_status='extension_completed')
 
@@ -308,7 +308,7 @@ def error_fill(center, root_id):
     diff = ~mask * filled
     seg_return = np.unique(seg[diff])
     to_return = seg_return[seg_return != 0]
-    return to_return
+    return to_return, {s:np.argwhere(seg==s)[0] for s in [root_id, *to_return}
 
 if __name__ == "__main__":
     # Wraps the command line arguments
