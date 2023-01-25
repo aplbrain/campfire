@@ -237,13 +237,15 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
 def error_fill_loop(namespace):
     import neuvueclient as Client
     C = Client.NeuvueQueue("https://queue.neuvue.io")
-    points = get_points_nvc({"namespace":namespace, 'type':['encapsulated_points'], 'agents_status':'open'})
+    points = get_points_nvc({"namespace":namespace, 'type':['encapsulated_points'])
     idx = points.index
 
     for i in range(points.shape[0]):
 
         point = points.iloc[i]
         rid = int(point.metadata['root_id'])
+        if rid % 2 == 1:
+            continue
         print("I", i, rid)
         center = np.array(point.coordinate) / [2,2,1]
         segs, seg_locs = error_fill(center, rid)
