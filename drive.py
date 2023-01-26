@@ -145,7 +145,7 @@ def nvc_post_point(C, points, author, namespace, name, status, metadata, weights
 def get_points_nvc(filt_dict):
     import neuvueclient as Client
     C = Client.NeuvueQueue("https://queue.neuvue.io")
-    return C.get_points(filt_dict,limit=50000).iloc[21000:]
+    return C.get_points(filt_dict,limit=10000)
 
 def segment_points(root_id, endpoint, point_id, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, namespace='Agents', direction_test=True):
@@ -237,7 +237,7 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
 def error_fill_loop(namespace):
     import neuvueclient as Client
     C = Client.NeuvueQueue("https://queue.neuvue.io")
-    points = get_points_nvc({"namespace":namespace, 'type':['encapsulated_points'])
+    points = get_points_nvc({"namespace":namespace, 'type':['encapsulated_points']})
     idx = points.index
 
     for i in range(points.shape[0]):
@@ -310,7 +310,7 @@ def error_fill(center, root_id):
     diff = ~mask * filled
     seg_return = np.unique(seg[diff])
     to_return = seg_return[seg_return != 0]
-    return to_return, {s:np.argwhere(seg==s)[0] for s in [root_id, *to_return}
+    return to_return, {str(s):str(np.argwhere(seg==s)[0]) for s in [root_id, *to_return]}
 
 if __name__ == "__main__":
     # Wraps the command line arguments
