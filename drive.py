@@ -1,4 +1,5 @@
 from logging import root
+import pickle
 import pandas as pd
 import numpy as np
 import time
@@ -52,31 +53,99 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
         print("Posted", s1, s2, s3)
     return high_confidence_tips
 
+def errors_defects_facets(queue_url_rid, namespace='Errors_defects', save='nvq', delete=False):
+    from tip_finding.tip_finding import error_locs_defects
+    import pickle
+
+    root_id_msg = sqs.get_job_from_queue(queue_url_rid)
+    soma_id, root_id = np.fromstring(root_id_msg.body, dtype=np.uint64, sep=':')
+    #soma_id = root_id_soma[:root_id_soma.find(':')]
+    #root_id = root_id_soma[root_id_soma.find(':') + 1:]
+
+    print("RID Processing", root_id)
+    st = pickle.load(open('soma_table.p', 'rb'))
+
+    r = error_locs_defects(root_id, soma_id, soma_table=st)
+    if r is None:
+        root_id_msg.delete()
+        return
+    sorted_encapsulated_send, facets_send_final, errors_send, errors_tips_send, rf, re, re_ep = r
+
+
+    # if save == 'sqs':
+    #     queue_url_endpoints = sqs.get_or_create_queue("Endpoints")
+
+    #     entries=sqs.construct_endpoint_entries(high_confidence_tips, root_id)
+    #     while(len(entries) > 0):
+    #         entries_send = entries[:10]
+    #         entries = entries[10:]
+    #         sqs.send_batch(queue_url_endpoints, entries_send)
+    if save == 'nvq':
+        import neuvueclient as Client
+        time_point = datetime.datetime.now()
+
+        metadata = {'time':str(time_point), 
+                    'root_id':str(root_id),
+                    }
+        C = Client.NeuvueQueue("https://queue.neuvue.io")
+        time_point = time.time()#str(datetime.datetime.now())
+        if sorted_encapsulated_send.shape[0] == 0 and facets_send_final.shape[0] == 0 and errors_send.shape[0]:
+            s1 = nvc_post_point(C, np.array([0, 0, 0]), "Justin", namespace, "no_tips_found", time_point, metadata, [])
+        if sorted_encapsulated_send.shape[0] > 0:
+            s1 = nvc_post_point(C, (sorted_encapsulated_send).astype(int), "Justin", namespace, "encapsulated_points", time_point, metadata, [])
+        else:
+            s1 = -1
+        if facets_send_final.shape[0] > 0:
+            s2 = nvc_post_point(C, (facets_send_final).astype(int), "Justin", namespace, "flats", time_point, metadata, rf)
+        else:
+            s2 = -1
+        if errors_send.shape[0] > 0:
+            s3 = nvc_post_point(C, (errors_send).astype(int), "Justin", namespace, "general_error_locs", time_point, metadata, re)
+        else:
+            s3 = -1
+        if errors_tips_send.shape[0] > 0:
+            s4 = nvc_post_point(C, (errors_tips_send).astype(int), "Justin", namespace, "tip_error_locs", time_point, metadata, re_ep)
+        else:
+            s4 = -1
+        #print("Posted", s1, s2, s3)
+    if delete:
+        root_id_msg.delete()
+    return sorted_encapsulated_send
+
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
-    queue_url_rid = sqs.get_or_create_queue("Root_ids_functional_prod")
+
+    queue_url_rid = sqs.get_or_create_queue("root_ids_functional_dlqueue")
+    print('Run endpoints', end, queue_url_rid)
+    #root_ids = pickle.load(open('root_ids.p', 'rb'))
     n_root_id = 0
     while n_root_id < end or end == -1:
         print("N", n_root_id)
-        endpoints(queue_url_rid, namespace, save, delete)
+        errors_defects_facets(queue_url_rid, namespace, save, delete)
         n_root_id+=1
         print("Done", n_root_id)
     return 1
 
-def nvc_post_point(C, points, author, namespace, name, status, metadata):
-    print('P', points.shape, points)
+def nvc_post_point(C, points, author, namespace, name, status, metadata, weights):
+    import copy
+    base_metadata = copy.deepcopy(metadata)
     if len(points.shape) == 1:
+        if len(weights) > 0:
+            metadata['weight'] = weights
         C.post_point([str(p) for p in points], author, namespace, name, status, metadata)
     elif len(points.shape) == 0:
         return 0
     else:
-        for pt in points:
+        for i, pt in enumerate(points):
+            metadata = copy.deepcopy(base_metadata)
+            if len(weights) > 0:
+                metadata['weight'] = weights[i]
             C.post_point([str(p) for p in pt], author, namespace, name, status, metadata)
     return 1
 
 def get_points_nvc(filt_dict):
     import neuvueclient as Client
     C = Client.NeuvueQueue("https://queue.neuvue.io")
-    return C.get_points(filt_dict)
+    return C.get_points(filt_dict,limit=10000)
 
 def segment_points(root_id, endpoint, point_id, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, namespace='Agents', direction_test=True):
@@ -165,6 +234,83 @@ def segment_gt_points(radius=(200,200,30), resolution=(2,2,1), unet_bound_mult=1
             merges = pd.concat([merges, ext.merges])
             ct+=1
 
+def error_fill_loop(namespace):
+    import neuvueclient as Client
+    C = Client.NeuvueQueue("https://queue.neuvue.io")
+    points = get_points_nvc({"namespace":namespace, 'type':['encapsulated_points']})
+    idx = points.index
+
+    for i in range(points.shape[0]):
+
+        point = points.iloc[i]
+        rid = int(point.metadata['root_id'])
+        if rid % 2 == 1:
+            continue
+        print("I", i, rid)
+        center = np.array(point.coordinate) / [2,2,1]
+        segs, seg_locs = error_fill(center, rid)
+        #md = point.metadata
+        #md['seg_merges'] = segs
+        C.post_agent(str(rid), str(seg_locs)+ "?" + str(segs), [int(c) for c in center], seg_locs, {'segs':str(segs)}, 'islands_v4') 
+                
+        C.patch_point(idx[i], agents_status='extension_completed')
+
+    
+def error_fill(center, root_id):
+    import fill_voids
+    from agents import data_loader
+    from caveclient import CAVEclient
+
+    client = CAVEclient('minnie65_phase3_v1')
+    radius = (200,200,15)
+
+    try:
+        seg = np.squeeze(data_loader.get_seg(center[0] - radius[0],
+                                         center[0] + radius[0],
+                                         center[1] - radius[1],
+                                         center[1] + radius[1],
+                                         center[2] - radius[2],
+                                         center[2] + radius[2]))
+    except:
+        return []
+    u, ns = np.unique(seg, return_counts=True)
+    print("C", center)
+    u = u[np.argsort(ns)][::-1]
+    seg_ids = np.array(u).astype(np.int64)
+    seg_mask = -1
+    if not root_id in seg_ids:
+        root_id = client.chunkedgraph.get_latest_roots(root_id)
+        out_of_date_mask = client.chunkedgraph.is_latest_roots(seg_ids)
+        seg_ids = np.array(seg_ids)
+        out_of_date_seg_ids = seg_ids[~(out_of_date_mask)]
+        seg_dict={}
+        if out_of_date_seg_ids.shape[0] == 0:
+            return [-1]
+        for s in out_of_date_seg_ids:
+
+            if s == 0:
+                seg_dict[0] = 0
+                continue
+            new_s = client.chunkedgraph.get_latest_roots(s)
+            print(s, new_s)
+            if root_id in new_s:
+                seg_mask = s
+                break
+            seg_ids[seg_ids == s] = new_s[-1]
+            seg_dict[new_s[-1]]=s
+        for s in seg_ids[out_of_date_mask]:
+            seg_dict[s] = s
+    else:
+        seg_mask = root_id
+    if seg_mask == -1:
+        return [-1]
+    mask = seg == seg_mask
+
+    filled = fill_voids.fill(mask)
+    diff = ~mask * filled
+    seg_return = np.unique(seg[diff])
+    to_return = seg_return[seg_return != 0]
+    return to_return, {str(s):str(np.argwhere(seg==s)[0]) for s in [root_id, *to_return]}
 
 if __name__ == "__main__":
     # Wraps the command line arguments
@@ -177,4 +323,4 @@ if __name__ == "__main__":
         namespace=str(sys.argv[5])
         run_endpoints(end, namespace, save, delete)
     if mode == 'agents':
-        run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4], rez=np.array([8,8,40]))
+        error_fill_loop('Tip_detect_defects_v7')

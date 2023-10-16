@@ -3,6 +3,7 @@ backoff
 numpy
 pandas
 meshparty==1.16.1
+fill_voids
 cloud-volume==8.5.4
 caveclient==4.5.2
 trimesh
