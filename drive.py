@@ -37,17 +37,17 @@ def endpoints(queue_url_rid, namespace='Errors_GT', save='nvq', delete=False):
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         time_point = time.time()#str(datetime.datetime.now())
         if high_confidence_tips.shape[0] == 0 and med_confidence_tips.shape[0] == 0 and low_confidence_tips.shape[0]:
-            s1 = nvc_post_point(C, np.array([0, 0, 0]), "Justin", namespace, "no_tips_found", time_point, metadata)
+            s1 = nvc_post_point(C, np.array([0, 0, 0]), "dxenes1", namespace, "no_tips_found", time_point, metadata)
         if high_confidence_tips.shape[0] > 0:
-            s1 = nvc_post_point(C, (high_confidence_tips).astype(int), "Justin", namespace, "error_high_confidence_", time_point, metadata)
+            s1 = nvc_post_point(C, (high_confidence_tips).astype(int), "dxenes1", namespace, "error_high_confidence_", time_point, metadata)
         else:
             s1 = -1
         if med_confidence_tips.shape[0] > 0:
-            s2 = nvc_post_point(C, (med_confidence_tips).astype(int), "Justin", namespace, "error_med_confidence", time_point, metadata)
+            s2 = nvc_post_point(C, (med_confidence_tips).astype(int), "dxenes1", namespace, "error_med_confidence", time_point, metadata)
         else:
             s2 = -1
         if low_confidence_tips.shape[0] > 0:
-            s3 = nvc_post_point(C, (low_confidence_tips).astype(int), "Justin", namespace, "error_low_confidence", time_point, metadata)
+            s3 = nvc_post_point(C, (low_confidence_tips).astype(int), "dxenes1", namespace, "error_low_confidence", time_point, metadata)
         else:
             s3 = -1
         print("Posted", s1, s2, s3)
@@ -90,21 +90,21 @@ def errors_defects_facets(queue_url_rid, namespace='Errors_defects', save='nvq',
         C = Client.NeuvueQueue("https://queue.neuvue.io")
         time_point = time.time()#str(datetime.datetime.now())
         if sorted_encapsulated_send.shape[0] == 0 and facets_send_final.shape[0] == 0 and errors_send.shape[0]:
-            s1 = nvc_post_point(C, np.array([0, 0, 0]), "Justin", namespace, "no_tips_found", time_point, metadata, [])
+            s1 = nvc_post_point(C, np.array([0, 0, 0]), "dxenes1", namespace, "no_tips_found", time_point, metadata, [])
         if sorted_encapsulated_send.shape[0] > 0:
-            s1 = nvc_post_point(C, (sorted_encapsulated_send).astype(int), "Justin", namespace, "encapsulated_points", time_point, metadata, [])
+            s1 = nvc_post_point(C, (sorted_encapsulated_send).astype(int), "dxenes1", namespace, "encapsulated_points", time_point, metadata, [])
         else:
             s1 = -1
         if facets_send_final.shape[0] > 0:
-            s2 = nvc_post_point(C, (facets_send_final).astype(int), "Justin", namespace, "flats", time_point, metadata, rf)
+            s2 = nvc_post_point(C, (facets_send_final).astype(int), "dxenes1", namespace, "flats", time_point, metadata, rf)
         else:
             s2 = -1
         if errors_send.shape[0] > 0:
-            s3 = nvc_post_point(C, (errors_send).astype(int), "Justin", namespace, "general_error_locs", time_point, metadata, re)
+            s3 = nvc_post_point(C, (errors_send).astype(int), "dxenes1", namespace, "general_error_locs", time_point, metadata, re)
         else:
             s3 = -1
         if errors_tips_send.shape[0] > 0:
-            s4 = nvc_post_point(C, (errors_tips_send).astype(int), "Justin", namespace, "tip_error_locs", time_point, metadata, re_ep)
+            s4 = nvc_post_point(C, (errors_tips_send).astype(int), "dxenes1", namespace, "tip_error_locs", time_point, metadata, re_ep)
         else:
             s4 = -1
         #print("Posted", s1, s2, s3)
@@ -114,7 +114,7 @@ def errors_defects_facets(queue_url_rid, namespace='Errors_defects', save='nvq',
 
 def run_endpoints(end, namespace="tips", save='nvq', delete=False):
 
-    queue_url_rid = sqs.get_or_create_queue("root_ids_functional_dlqueue")
+    queue_url_rid = sqs.get_or_create_queue("campfire-queue")
     print('Run endpoints', end, queue_url_rid)
     #root_ids = pickle.load(open('root_ids.p', 'rb'))
     n_root_id = 0
@@ -323,4 +323,5 @@ if __name__ == "__main__":
         namespace=str(sys.argv[5])
         run_endpoints(end, namespace, save, delete)
     if mode == 'agents':
+        #run_nvc_agents(save=sys.argv[2], device=sys.argv[3], namespace=sys.argv[5], namespace_agt=sys.argv[4], rez=np.array([8,8,40]))
         error_fill_loop('Tip_detect_defects_v7')
