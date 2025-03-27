@@ -27,7 +27,7 @@ def find_endpoints(root_id, **kwargs):
         3 element xyz location for the location to set the root in units set by root_point_resolution,
         by default None. If None, a distal tip is selected.
     root_point_resolution : array-like, optional
-        Resolution in euclidean space of the root_point, by default [4, 4, 40]
+        Resolution in euclidean space of the root_point, by default [8,8,33]
     root_point_search_radius : int, optional
         Distance in euclidean space to look for segmentation when finding the root vertex, by default 300
     collapse_soma : bool, optional,
@@ -68,12 +68,12 @@ def find_endpoints(root_id, **kwargs):
     return end_points
 
 if __name__ == "__main__":
-    client = CAVEclient('minnie65_phase3_v1')
+    client = CAVEclient('h01_c3_flat')
     oid = 864691135761488438  # Root id
     endpoints = find_endpoints(oid,
                                client=client,
                                refine='all',
-                               root_point_resolution=[4, 4, 40],
+                               root_point_resolution=[8,8,33],
                                collapse_soma=True,
                                n_parallel=8)
     print(endpoints)

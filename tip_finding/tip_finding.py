@@ -18,8 +18,8 @@ def check_axon(point, seg_id, distance=2500):
     point_b = [coord + distance for coord in point]
     bounding_box = [point_a, point_b]
 
-    client = CAVEclient('minnie65_phase3_v1')
-    synapse_table = 'synapses_pni_2'
+    client = CAVEclient('h01_c3_flat')
+    synapse_table = 'synapses'
     pre_ids = client.materialize.query_table(synapse_table,
         filter_equal_dict={'pre_pt_root_id': seg_id},
         filter_spatial_dict={'pre_pt_position': bounding_box},
@@ -34,7 +34,7 @@ def check_axon(point, seg_id, distance=2500):
     )
     return len(pre_ids), len(post_ids)
 
-def viewer(mesh=None, gt=None, graphs=None, graphs_mask=None, other_points = [], gt_res=np.array([4,4,40])):
+def viewer(mesh=None, gt=None, graphs=None, graphs_mask=None, other_points = [], gt_res=np.array([8,8,33])):
     from meshparty import trimesh_vtk
     vis_list = []
     if not mesh == None:
@@ -110,15 +110,15 @@ def unique_rows(a):
     return unique_a.view(a.dtype).reshape((unique_a.shape[0], a.shape[1]))
 
 def get_soma(soma_id:str):
-    cave_client = CAVEclient('minnie65_phase3_v1')
+    cave_client = CAVEclient('h01_c3_flat')
     soma = cave_client.materialize.query_table(
-        "nucleus_neuron_svm",
+        "nucelus",
         filter_equal_dict={'id':soma_id}
     )
     return soma
 
 def get_and_process_mesh(root_id):
-    datastack_name = "minnie65_phase3_v1"
+    datastack_name = "h01_c3_flat"
     client = CAVEclient(datastack_name)
     vol = CloudVolume(
         client.info.segmentation_source(),
@@ -174,7 +174,7 @@ def process_mesh_ccs(mesh_obj):
             all_ids.update(ccs_graph[i])
         else:
             if len(ccs_graph[i]) < 1000:
-                encapsulated_ids.append((np.mean(mesh_obj.vertices[ccs_graph[i]], axis=0)/[4,4,40], len(ccs_graph[i])))
+                encapsulated_ids.append((np.mean(mesh_obj.vertices[ccs_graph[i]], axis=0)/[8,8,33], len(ccs_graph[i])))
             
     all_component = np.array(list(ccs_graph[np.argmax(ccs_len)]))
     all_component_remap = np.arange(all_component.shape[0])
@@ -222,14 +222,14 @@ def process_mesh_errors(mesh_obj, centers, eps, eps_nm, lens, skel_mp):
             continue
         
         dists = dist_matrix[ct, eps_hit]
-    #     print(dists, eps_hit, center / [4,4,40])
+    #     print(dists, eps_hit, center / [8,8,33])
         
         amin = np.argmin(dists)
         tip_hit = eps_hit[amin]
         min_dist = dists[amin]
         
         closest_tip[ct] = tip_hit
-    #     print(np.argmin(ep_pts_dists), ep_found, eps_nm[np.argmin(ep_pts_dists)]/[4,4,40], eps_nm[j]/[4,4,40], center/[4,4,40])
+    #     print(np.argmin(ep_pts_dists), ep_found, eps_nm[np.argmin(ep_pts_dists)]/[8,8,33], eps_nm[j]/[8,8,33], center/[8,8,33])
         dists_defects[ct] = min_dist
         sizes[ct] = len(lens[ct])
         ct+=1
@@ -331,7 +331,7 @@ def process_mesh_facets(mesh_obj, skel_mp, eps, path_to_root_dict, eps_nm):
     for un, num in zip(uns, nums):
         if num > 1:
             final_mask_facets[np.argwhere(tips_hit_send_facets == un)[1:]] = False
-    facets_send_final = mean_locs_send_facets[final_mask_facets] / [4,4,40]
+    facets_send_final = mean_locs_send_facets[final_mask_facets] / [8,8,33]
     return facets_send_final, ranks_ep_facets
 
 def process_defects(mesh_obj, a=.75):
@@ -432,7 +432,7 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
         if soma_table==None:
             soma_table = get_soma(str(soma_id))
         if soma_table[soma_table.id == soma_id].shape[0] > 0:
-            center = np.array(soma_table[soma_table.id == soma_id].pt_position)[0] * [4,4,40]
+            center = np.array(soma_table[soma_table.id == soma_id].pt_position)[0] * [8,8,33]
         else:
             center=None
     except:
@@ -462,8 +462,8 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
     #    centers_errors = centers_errors[np.min(distance_matrix(centers_errors, centers_errors_ep), axis=1)>1000]
     facets_send_final, ranks_ep_facets = process_mesh_facets(mesh_obj, skel_mp, eps, path_to_root_dict, eps_nm)
 
-    errors_send = centers_errors / [4,4,40]
-    errors_tips_send = centers_errors_ep / [4,4,40]
+    errors_send = centers_errors / [8,8,33]
+    errors_tips_send = centers_errors_ep / [8,8,33]
     encapsulated_centers = [e[0] for e in encapsulated_ids]
     encapsulated_lens = [e[1] for e in encapsulated_ids]
     sorted_encapsulated_send = np.array(encapsulated_centers)[np.argsort(encapsulated_lens)][::-1]
@@ -473,10 +473,10 @@ def error_locs_defects(root_id, soma_id = None, soma_table=None, center_collapse
 def return_filled(root_id, loc):
     from agents import data_loader
     import fill_voids
-    client = CAVEclient('minnie65_phase3_v1')
+    client = CAVEclient('h01_c3_flat')
 
     radius = (200,200,15)
-    root_id = 864691135104596813
+    #root_id = 864691135104596813
     center = loc[0]/2, loc[1]/2, loc[2]
 
     seg = np.squeeze(data_loader.get_seg(center[0] - radius[0],

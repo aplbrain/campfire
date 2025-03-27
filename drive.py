@@ -147,7 +147,7 @@ def get_points_nvc(filt_dict):
     C = Client.NeuvueQueue("https://queue.neuvue.io")
     return C.get_points(filt_dict,limit=10000)
 
-def segment_points(root_id, endpoint, point_id, radius=(200,200,30), resolution=(8,8,40), unet_bound_mult=1.5, save='pd',device='cpu',
+def segment_points(root_id, endpoint, point_id, radius=(200,200,30), resolution=(8,8,33), unet_bound_mult=1.5, save='pd',device='cpu',
                    nucleus_id=0, time_point=0, namespace='Agents', direction_test=True):
     
     if time_point == 0:
@@ -183,7 +183,7 @@ def segment_points(root_id, endpoint, point_id, radius=(200,200,30), resolution=
             #ext.weights_dict, ext.bound, ext.bound_EM, ext.mem_seg, ext.device, duration, ext.n_errors, ext.namespace)
     return ext, 1
 
-def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,40), unet_bound_mult=1, save='nvq', device='cpu', direction_test=True):
+def run_nvc_agents(namespace, namespace_agt, radius=(300,300,30), rez=(8,8,33), unet_bound_mult=1, save='nvq', device='cpu', direction_test=True):
     print(namespace, namespace_agt, radius, rez, unet_bound_mult, save, device, direction_test)
     points = get_points_nvc({"namespace":namespace, 'type':['error_high_confidence_thick', 'error_high_confidence_thin'], 'agents_status':'open'})
     idx = points.index
@@ -261,7 +261,7 @@ def error_fill(center, root_id):
     from agents import data_loader
     from caveclient import CAVEclient
 
-    client = CAVEclient('minnie65_phase3_v1')
+    client = CAVEclient('h01_c3_flat')
     radius = (200,200,15)
 
     try:

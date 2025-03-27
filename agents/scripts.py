@@ -238,9 +238,9 @@ class get_soma():
     @backoff.on_exception(backoff.expo, Exception, max_tries=8)
     def __init__(self, seg_ids):
         self.seg_ids = seg_ids
-        cave_client = CAVEclient('minnie65_phase3_v1')
+        cave_client = CAVEclient('h01_c3_flat')
         soma = cave_client.materialize.query_table(
-            "nucleus_neuron_svm",
+            "nucelus",
             filter_in_dict={'pt_root_id':seg_ids},
             select_columns=['id','pt_root_id', 'pt_position']
         )
@@ -267,9 +267,9 @@ class is_dendrite():
             new_ids = seg_ids
             seg_dict = dict(zip(seg_ids, seg_ids))
         # Create a client for the Minnie65 PCG and Tables
-        client = CAVEclient('minnie65_phase3_v1')
+        client = CAVEclient('h01_c3_flat')
         bounding_box = make_bounding_box(endpoint, 2500)
-        synapse_table = 'synapses_pni_2'
+        synapse_table = 'synapses'
         # print(new_ids)
         post_ids = client.materialize.query_table(synapse_table,
             filter_in_dict={'post_pt_root_id': new_ids},
@@ -462,7 +462,7 @@ def get_contacts(seg, root_id,conv_size=3):
 def get_public_seg_ids(seg_ids):
     if type(seg_ids) != list:
         seg_ids = [seg_ids]
-    client = CAVEclient("minnie65_phase3_v1")
+    client = CAVEclient("h01_c3_flat")
     ts = client.materialize.get_timestamp(117)
     past_ids = client.chunkedgraph.get_past_ids(root_ids=seg_ids,timestamp_past=ts)
     ids = list(past_ids['past_id_map'].keys())
@@ -481,7 +481,7 @@ def get_current_seg_ids(seg_ids):
             seg_ids = list(seg_ids)
         except TypeError:
             seg_ids = [seg_ids]
-    client = CAVEclient("minnie65_phase3_v1")
+    client = CAVEclient("h01_c3_flat")
     out_of_date_mask = client.chunkedgraph.is_latest_roots(seg_ids)
     seg_ids = np.array(seg_ids)
     out_of_date_seg_ids = seg_ids[np.logical_not(out_of_date_mask)]
@@ -511,7 +511,7 @@ def trajectory_filter(root_id, seg_ids, seg):
         angle_list.append(angle)
     return angle_dict, angle_list
 
-def calc_seg_gradient(seg_id, seg, rez = np.array([4,4,40])):
+def calc_seg_gradient(seg_id, seg, rez = np.array([8,8,33])):
     import cc3d
 
     seg_mask = seg == int(seg_id)
